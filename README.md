@@ -1,5 +1,7 @@
-# FlamingOctoAssembler
-**FOR-ALL** (**F**laming **O**cto **R**obot-**A**ssembly **L**anguage **L**oader) 
+# FOR-ALL
+(**F**laming **O**cto **R**obot-**A**ssembly **L**anguage **L**oader) 
+An assembler project for custom hardware
+(See [flaming-octo-robot](https://github.com/JQIamo/flaming-octo-robot))
 
 Trying mostly to get the basic structure of things laid out in advance.
 
