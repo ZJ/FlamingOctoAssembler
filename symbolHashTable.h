@@ -31,21 +31,61 @@ typedef struct symbol {
 
 typedef symbol_t * symbol_ptr;	//!< Pointer to a symbol object
 
+/*!	\brief	Takes a C-style string and return the raw Shift-Add-XOR hash
+ *
+ *	\param[in]	keyString	C-style string containing key to-be-hashed.
+ *	\returns	The raw hash
+ */
 raw_hash_t getRawHash(const unsigned char *keyString);
+
+/*!	\brief	Takes a C-style string and return the hash-table index
+ *
+ *	\param[in]	keyString	C-style string containing key to-be-hashed.
+ *	\returns	The index to use in the hash table
+ */
 red_hash_t getHashIndex(const unsigned char *keyString);
+
+/*! \brief Creates a new, empty symbol table.
+ *
+ */
 symbol_ptr * newSymbolTable();
+
+/*! \brief Frees entire symbol table, including memory claimed by entries
+ *
+ */
 void freeSymbolTable(symbol_ptr * symbolTable);
+
+/*!	\brief Frees a linked list chain
+ *	\warning User is responsible for marking head to NULL, since the pointer is passed by value.
+ */
 void freeSymbolChain(symbol_ptr head);
+
+/*! \brief	Creates a new symbol with provided name and default values
+ *	\warning Will return NULL on failure.
+ */
 symbol_ptr newSymbol(const unsigned char * symbolName);
+
+/*! \brief	Searches the table for the given symbol.
+ *	\details Searches the symbol table by starting at the root of the bin given by hashing
+ *			the name.  Returns NULL if the symbol is not found.
+ */
 symbol_ptr findSymbol(const unsigned char * symbolName, symbol_ptr * symbolTable);
+
+/*! \brief	Inserts a new symbol at the given location in a chain.
+ *
+ */
 void insertSymbol(symbol_ptr * insertLoc, symbol_ptr toInsert);
+
+/*! \brief	Creates a new symbol and adds it to the appropriate table location.
+ *
+ */
 symbol_ptr addSymbol(const unsigned char * symbolName, symbol_ptr * symbolTable);
 
-/*!  \brief Inline to mark symbol as Undefined */
+/*!  \brief Mark symbol as Undefined TODO: Change to macro*/
 void setTypeU(symbol_ptr symbol);
 
-/*!  \brief Inline to mark symbol as Defined */
+/*!  \brief Mark symbol as Defined TODO: Change to macro*/
 void setTypeD(symbol_ptr symbol);
 
-/*!  \brief Inline to mark symbol as Multiply Defined */
+/*!  \brief Mark symbol as Multiply Defined TODO: Change to macro*/
 void setTypeM(symbol_ptr symbol);
