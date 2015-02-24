@@ -113,13 +113,14 @@ void insertSymbol(symbol_ptr * insertLoc, symbol_ptr toInsert) {
 }
 
 symbol_ptr addSymbol(const unsigned char * symbolName, symbol_ptr * symbolTable) {
-	red_hash_t tablePos = 0;
 	symbol_ptr toAdd = NULL;
 	
 	toAdd = newSymbol(symbolName);
-	tablePos = getHashIndex(symbolName);
-	
-	insertSymbol(symbolTable + tablePos, toAdd);
+	if (toAdd != NULL) {
+		red_hash_t tablePos = 0;
+		tablePos = getHashIndex(symbolName);
+		insertSymbol(symbolTable + tablePos, toAdd);
+	}
 	
 	return toAdd;
 }

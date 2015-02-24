@@ -51,7 +51,8 @@ red_hash_t getHashIndex(const unsigned char *keyString);
 
 /*! \brief Creates a new, empty symbol table.
  *
- *	\returns	A pointer to the new symbol table as ::symbol_ptr *
+ *	\returns	A pointer to the new symbol table as ::symbol_ptr * on success
+ *	\returns	NULL on failure
  */
 symbol_ptr * newSymbolTable();
 
@@ -108,7 +109,8 @@ void insertSymbol(symbol_ptr * insertLoc, symbol_ptr toInsert);
  *
  *	\param[in]	symbolName	a C-string giving the name to address
  *	\param[in]	symbolTable	a pointer to the root of the symbol table adding to
- *	\returns	a pointer to the newly-created ::symbol
+ *	\returns	a pointer to the newly-created ::symbol on success
+ *	\returns	NULL on failure
  */
 symbol_ptr addSymbol(const unsigned char * symbolName, symbol_ptr * symbolTable);
 
