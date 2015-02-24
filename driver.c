@@ -1,6 +1,7 @@
 #include <stdio.h>
 
-#include "symbolHashTable.h"
+#include "symbolHashTable/symbolHashTable.h"
+
 void printSymbol(symbol_ptr toPrint) {
 	printf("\t @ 0x%08x %s \t%c \t%d \t0x%08x\n\r", toPrint, toPrint->name, toPrint->type, toPrint->locCount, toPrint->next);
 }
