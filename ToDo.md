@@ -5,7 +5,7 @@
   - [x] Flesh out documentation to do parameters & return values
   - [x] Change one-line functions to Macros
   - [x] Add BRAM offset to symbol table
-  - [ ] Add literal table
+  - [x] Add literal table
   - [x] Check initialization in newSymbol()
 
 ## Toolchain/Environment Management
