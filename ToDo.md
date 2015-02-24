@@ -2,16 +2,17 @@
 
 ## Codebase changes
   - [x] Move documentation from symbolHashTable.c to symbolHashTable.h
-  - [ ] Flesh out documentation to do parameters & return values
-  - [X] Change one-line functions to Macros
-  - [ ] Add BRAM offset to symbol table
+  - [x] Flesh out documentation to do parameters & return values
+  - [x] Change one-line functions to Macros
+  - [x] Add BRAM offset to symbol table
   - [ ] Add literal table
+  - [x] Check initialization in newSymbol()
 
 ## Toolchain/Environment Management
   - [ ] Setup Lint for syntax checking
     - [ ] Find/Download lint
 	- [ ] Compile lint
 	- [ ] Invoke lint in pre-commit hook
-  - [ ] Setup doxygen for command-line invocation
+  - [x] Setup doxygen for command-line invocation
   - [ ] Setup makefiles
   - [ ] Add doc generation to makefile

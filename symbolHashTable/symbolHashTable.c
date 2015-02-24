@@ -81,6 +81,7 @@ symbol_ptr newSymbol(const unsigned char * symbolName) {
 	if ( symbol != NULL ) {
 		symbol->name = nameStorage;
 		symbol->locCount = 0;
+		symbol->bramOffset = 0;
 		symbol->type = 'U';
 		symbol->next = NULL;
 	} else {
