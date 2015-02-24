@@ -111,18 +111,6 @@ void insertSymbol(symbol_ptr * insertLoc, symbol_ptr toInsert) {
 	*insertLoc = toInsert;
 }
 
-void setTypeU(symbol_ptr symbol) {
-	symbol->type = 'U';
-}
-
-void setTypeD(symbol_ptr symbol) {
-	symbol->type = 'D';
-}
-
-void setTypeM(symbol_ptr symbol) {
-	symbol->type = 'M';
-}
-
 symbol_ptr addSymbol(const unsigned char * symbolName, symbol_ptr * symbolTable) {
 	red_hash_t tablePos = 0;
 	symbol_ptr toAdd = NULL;

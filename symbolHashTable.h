@@ -81,11 +81,17 @@ void insertSymbol(symbol_ptr * insertLoc, symbol_ptr toInsert);
  */
 symbol_ptr addSymbol(const unsigned char * symbolName, symbol_ptr * symbolTable);
 
-/*!  \brief Mark symbol as Undefined TODO: Change to macro*/
-void setTypeU(symbol_ptr symbol);
+/*!	\brief Mark symbol as Undefined
+ *	\param _symbol_ptr_ symbol pointer to a symbol struct.
+ */
+#define setTypeU(symbol) (symbol)->type = 'U'
 
-/*!  \brief Mark symbol as Defined TODO: Change to macro*/
-void setTypeD(symbol_ptr symbol);
+/*!	\brief Mark symbol as Defined
+ *	\param _symbol_ptr_ symbol pointer to a symbol struct.
+ */
+#define setTypeD(symbol) (symbol)->type = 'D'
 
-/*!  \brief Mark symbol as Multiply Defined TODO: Change to macro*/
-void setTypeM(symbol_ptr symbol);
+/*!	\brief Mark symbol as Multiply Defined
+ *	\param _symbol_ptr_ symbol pointer to a symbol struct.
+ */
+#define setTypeM(symbol) (symbol)->type = 'M'

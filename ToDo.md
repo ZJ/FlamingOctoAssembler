@@ -3,7 +3,7 @@
 ## Codebase changes
   - [x] Move documentation from symbolHashTable.c to symbolHashTable.h
   - [ ] Flesh out documentation to do parameters & return values
-  - [ ] Change one-line functions to Macros
+  - [X] Change one-line functions to Macros
   - [ ] Add BRAM offset to symbol table
   - [ ] Add literal table
 
