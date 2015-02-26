@@ -14,7 +14,7 @@
 #define DATA_INST_MASK	0x01	//!< Write Data Instruction mask
 #define WR_OPCODE_MASK	0x02	//!< Write OpCode mask
 #define WR_DATFLD_MASK	0x04	//!< Write Data Field mask
-#define WR_TIMFLD_MASK	0x08	//!< Write Timecode Field mask
+#define WR_TIMFLD_MASK	0x08	//!< Write Time-code Field mask
 #define DATA_ALGN_MASK	0x30	//!< Data Alignment field mask
 #define RSVD_FLD_MASK	0xC0	//!< Reserved Bits mask
 
@@ -25,7 +25,7 @@
 #define DATA_ALIGN_64	0x00	//!< 1x 64-bit word per line
 #define DATA_ALIGN_32	0x10	//!< 2x 32-bit words per line
 #define DATA_ALIGN_16	0x20	//!< 4x 16-bit words per line
-#define DATA_ALIGN_8	0x30	//!< 8x 8-bit words per line
+#define DATA_ALIGN_8	0x30	//!< 8x  8-bit words per line
 
 //! @}
 
