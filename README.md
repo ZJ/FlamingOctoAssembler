@@ -58,9 +58,19 @@ Assuming for the time being a const C-struct array, with the struct formatted as
       - Empty fields will have all bits set (e.g. if you want to store 3 32-bit words in 2 memory lines, the unused spot will be filled with `0xFFFF_FFFF`)
     - 6: _Reserved_ (Currently no effect, but set to 0 or face weird behavior in the future)
     - 7: _Reserved_
+### Example Commands
+	- "DQ"     , 0x??, 1, 1, 0x01; Storing 1 quad  (64-bits) in place
+	- "DL"     , 0x??, 2, 1, 0x11; Storing 2 longs (32-bits) in place
+	- "DW"     , 0x??, 4, 1, 0x21; Storing 4 words (16-bits) in place
+	- "DB"     , 0x??, 8, 1, 0x31; Storing 8 bytes ( 8-bits) in place
+	- "BRANCH" , 0x??, 4, 2, 0x1E; Write in branch's opcode, then 4 number corresponding to jump locations. _OR_
+	- "BRANCH" , 0x??, 3, 2, 0x1C; Write in branch's opcode, then 3 numbers corresponding to jump locations. Plus fall-through for branch 0
+	- "JUMP"   , 0x??, 1, 1, 0x0C; Write in jumps's opcode, the the jump location in the timecode field (Or use flags = 0x06 and write it to the data field)
+	- "NEXTBLK", 0x??, 0, 1, 0x02; Write just NEXTBLK's opcode and nothing else
 
 ## Special Considerations
 
 `LOAD` commands will necessitate a symbol table with two entries.  One for the eventual location in BRAM to be used in the `LOAD` command, and one with the Location Counter entry appropriate to the block it is in.  This also means the assembler  ~~will have to be~~ may wish to be aware of the base address in BRAM it is placing the assembled code. Alternatively, BRAM addresses might be saved as offsets relative to the first instruction.
 
 Because a `LOAD` or similar command will exist, we'll need a special assembler directive `SETLC` or similar.  This would indicate to the assembler that the location counter has a new value so that the symbols used to set up `JUMP`s &c. will point to appropriate locations.  This directive would not emit any machine code to memory, rather it would only change the internal state of the assembler.
+
