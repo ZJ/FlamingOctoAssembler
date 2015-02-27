@@ -8,7 +8,12 @@
  *  \version 0.1
  *	\date	2015-02-19
  */
- 
+
+// C++ extern C fence start
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // Apocryphal wisdom claims this should be a prime, so here is a list of primes 40 < prime < 255
 /* 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97, 101, 103, 107, 109, 113, 127,
  * 131, 137, 139, 149, 151, 157, 163, 167, 173, 179, 181, 191, 193, 197, 199, 211,
@@ -222,3 +227,8 @@ literal_ptr addLiteral(const unsigned char * literalName, literalTab_t literalTa
  *	\param objectToSet (::symbol_ptr or ::literal_ptr)
  */
 #define setTypeM(objectToSet) (objectToSet)->type = 'M'
+
+// C++ extern C fence end
+#ifdef __cplusplus
+}
+#endif

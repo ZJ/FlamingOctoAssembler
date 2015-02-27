@@ -7,6 +7,11 @@
  *	\date	2015-02-26
  */
 
+// C++ extern C fence start
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /*! \name Masks for cmdEntry->flags Field
  *
  */
@@ -39,3 +44,8 @@ typedef struct cmdEntry {
 	unsigned char	numLines;	//!< The number of 64-bit memory words the command will occupy on-device 
 	unsigned char	flags;		//!< A bitfield giving specific storage requirements for the command
 } cmdEntry_t;
+
+// C++ extern C fence end
+#ifdef __cplusplus
+}
+#endif
