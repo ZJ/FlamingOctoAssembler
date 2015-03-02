@@ -12,6 +12,11 @@
 extern "C" {
 #endif
 
+#define LABEL_END ':'		//!< Used to end a label indication
+#define COMMENT_START ';'	//!< Used to mark the start of the comment, also required at end of command
+#define ARG_DELIMIT ','		//!< Delimits arguments to commands
+#define MAX_CMD_LEN 8		//!< Maximum number of characters for a command
+
 /*! \name Masks for cmdEntry->flags Field
  *
  */
@@ -21,7 +26,8 @@ extern "C" {
 #define WR_DATFLD_MASK	0x04	//!< Write Data Field mask
 #define WR_TIMFLD_MASK	0x08	//!< Write Time-code Field mask
 #define DATA_ALGN_MASK	0x30	//!< Data Alignment field mask
-#define RSVD_FLD_MASK	0xC0	//!< Reserved Bits mask
+#define RSVD_FLD_MASK	0x40	//!< Reserved Bits mask
+#define ASSM_DIR_MASK	0x80	//!< Command is actually an assembler directive
 
 //! @}
 
