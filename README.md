@@ -57,7 +57,8 @@ Assuming for the time being a const C-struct array, with the struct formatted as
       - Values given in the ARGN fields will be masked to the appropriate size, keeping the LSBs.
       - Empty fields will have all bits set (e.g. if you want to store 3 32-bit words in 2 memory lines, the unused spot will be filled with `0xFFFF_FFFF`)
     - 6: _Reserved_ (Currently no effect, but set to 0 or face weird behavior in the future)
-    - 7: _Reserved_
+    - 7: Compiler Directive: Marks the command as actually being a compiler directive. See individual directives for use of other fields.
+
 ### Example Commands
 	- "DQ"     , 0x??, 1, 1, 0x01; Storing 1 quad  (64-bits) in place
 	- "DL"     , 0x??, 2, 1, 0x11; Storing 2 longs (32-bits) in place
