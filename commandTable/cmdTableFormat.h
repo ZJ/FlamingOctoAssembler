@@ -12,6 +12,11 @@
 extern "C" {
 #endif
 
+#define	BLOCK_MASK	0xFE00	//!< The mask of the bits determining which block-equivalent offset to start from
+#define BLOCK_SIZE	512		//!< The size of a BRAM block, in 64-bit words
+#define CMD_BYTES	8		//!< The number of bytes in a single command word 
+#define nextBlock( offset ) (((offset) & BLOCK_MASK) + BLOCK_INC) //!< Macro function to get the next block offset
+
 #define LABEL_END ':'		//!< Used to end a label indication
 #define COMMENT_START ';'	//!< Used to mark the start of the comment, also required at end of command
 #define ARG_DELIMIT ','		//!< Delimits arguments to commands
@@ -50,7 +55,8 @@ typedef struct cmdEntry {
 	unsigned char	numLines;	//!< The number of 64-bit memory words the command will occupy on-device 
 	unsigned char	flags;		//!< A bitfield giving specific storage requirements for the command
 } cmdEntry_t;
-
+typedef cmdEntry_t * cmdEntry_ptr;	//!< Pointer to cmdENtry_t (cmdEntry)
+ 
 // C++ extern C fence end
 #ifdef __cplusplus
 }
