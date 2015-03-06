@@ -167,7 +167,7 @@ symbol_ptr findSymbol(const unsigned char * symbolName, symbolTab_t symbolTable)
 	binEntry = symbolTable[tableBin];
 	if ( binEntry != NULL ) {
 		// Chase the linked list, looking for a match.
-		while ( !strcmp(binEntry->name, symbolName) ) {
+		while ( strcmp(binEntry->name, symbolName) != 0 ) {
 			// If you hit the end of the list, break (will return NULL).
 			if ( (binEntry = binEntry->next) == NULL ) break;
 		}
