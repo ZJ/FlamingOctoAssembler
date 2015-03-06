@@ -22,6 +22,8 @@ extern "C" {
 #define ARG_DELIMIT ','		//!< Delimits arguments to commands
 #define MAX_CMD_LEN 8		//!< Maximum number of characters for a command
 
+#define CMD_NOP 0x3F
+
 /*! \name Masks for cmdEntry->flags Field
  *
  */
@@ -56,7 +58,9 @@ typedef struct cmdEntry {
 	unsigned char	flags;		//!< A bitfield giving specific storage requirements for the command
 } cmdEntry_t;
 typedef cmdEntry_t * cmdEntry_ptr;	//!< Pointer to cmdENtry_t (cmdEntry)
- 
+
+typedef const struct cmdEntry * (*cmdFindFunct_ptr)(register const char *, register unsigned int);
+
 // C++ extern C fence end
 #ifdef __cplusplus
 }

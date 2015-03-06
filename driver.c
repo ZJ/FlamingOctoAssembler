@@ -3,7 +3,17 @@
 
 #include "symbolHashTable/symbolHashTable.h"
 #include "commandTable/cmdTableFormat.h"
+#include "commandTable/cmdTableTest.h"
 #include "errs/parserErrs.h"
+
+#define	NUM_CORES 1
+
+// This doesn't frigging work
+#define TEST_CORE_CMD_LOOKUP getCmdTest
+// Define up to the right number of cores
+
+cmdFindFunct_ptr cmdLookupHandles[NUM_CORES] = {&TEST_CORE_CMD_LOOKUP};
+
 
 void printSymbol(symbol_ptr toPrint) {
 	printf("\t @ 0x%08x %s \t%c \t%d \t0x%08x\n\r", toPrint, toPrint->name, toPrint->type, toPrint->locCount, toPrint->next);
@@ -40,8 +50,24 @@ static char * lfsrWord (unsigned int seed) {
 	for (i=0; i<8; i++) word[i] = lfsrChar(seed);
 	return word;
 }
-cmdEntry_ptr processCmd(const char * cmdStr, char * errMsg, unsigned long * locCount, unsigned long * bramOff);
-cmdEntry_ptr findCommand(const char * labelName);
+
+cmdEntry_ptr findCommand(const char * labelName) {
+	cmdEntry_ptr theCmd = NULL;
+	unsigned int length = strlen(labelName);
+	theCmd = (*cmdLookupHandles)(labelName, length);
+	if ( theCmd == (cmdEntry_ptr) 0 ) return NULL;
+	return theCmd;
+}
+
+cmdEntry_ptr processCmd(const char * cmdStr, char * errMsg, unsigned long * locCount, unsigned long * bramOff) {
+	cmdEntry_ptr theCmd = findCommand(cmdStr);
+	if ( theCmd == NULL ) {
+		strcpy(errMsg, ERR_PARSE_CMD_NOT_FOUND);
+		return NULL;
+	}
+	return theCmd;
+}
+
 /*!	\brief	Handles pass 1 tasks for a passed line of the assembly file.
  *	\details - Searches for label definitions to build the symbol table, and checks that none a multiply defined.
  *			 - Also checks for literal definitions and creates those
@@ -87,7 +113,7 @@ char * processLinePass1(char * lineBuffer, int lineLength, symbolTab_t symbolTab
 		
 		*buffPos = '\0'; // Switch the label sep. to NULL char
 		strcpy(labelStr, lineBuffer);
-		lineBuffer = buffPos++;
+		lineBuffer = ++buffPos;
 		
 		if (defineLabel(labelStr, errMsg, symbolTable, *locCount, *bramOff) != 0) return errMsg; //Problem defining the label
 		
@@ -96,43 +122,47 @@ char * processLinePass1(char * lineBuffer, int lineLength, symbolTab_t symbolTab
 	
 	// Should be at the beginning of the command by here, so go until whitespace
 	*cmdStr = '\0';
+	buffPos = lineBuffer;
 	for (i=0; i < MAX_CMD_LEN; i++) {
 		// Process Line for command Here
-		if ( isspace(lineBuffer[i]) || lineBuffer[i] == '\0' ) {
-			lineBuffer[i] = '\0';
-			strcpy(cmdStr, lineBuffer);
-			lineBuffer += i;
+		if ( isspace(*lineBuffer) || ((*lineBuffer) == '\0') ) {
+			*lineBuffer = '\0';
+			strcpy(cmdStr, buffPos);
+			lineBuffer++;// Increment past the null we just inserted
 			break;
 		}
+		lineBuffer++;
 	}
+
 	if ( cmdStr[0] != '\0' ) {
 		thisCmd = processCmd(cmdStr, errMsg, locCount, bramOff);
-		if ( thisCmd == NULL) return errMsg; // Problem looking up command. Report the error
+		if ( thisCmd == NULL ) return errMsg; // Problem looking up command. Report the error
 	} else {
 		strcpy(errMsg, ERR_PARSE_CMD_LONG);
 		return errMsg;
 	}
-	
+
 	// If we're here, the command entry is stashed in thisCmd, so we can keep processing
 	*locCount   += thisCmd->numLines;
-	*bramOffset += (thisCmd->numLines * CMD_BYTES);
+	*bramOff    += (thisCmd->numLines * CMD_BYTES);
 	
+
 	// Check for correct number of arguments
 	// (don't bother resolving symbols and literals at this time, that is in pass 2)
 	// In other words, don't even look at the content of the stuff, just count.
 	while ( isspace(*lineBuffer) ) lineBuffer++; // Skip any whitespace before the first argument
+
 	argCnt = 0;
 	if (*lineBuffer != '\0') {
 		argCnt = 1;
 		buffPos = strchr(lineBuffer, ARG_DELIMIT);
 		while ( buffPos != NULL ) {
 			argCnt++;
-			strchr(NULL, ARG_DELIMIT);
+			buffPos = strchr(++buffPos, ARG_DELIMIT);
 		}
 	}
 	
-	
-	if ( argCnt != thisCmd->numArgs)
+	if ( argCnt != thisCmd->numArgs) {
 		strcpy(errMsg, ERR_PARSE_ARG_CNT);
 		return errMsg;
 	}
@@ -158,13 +188,14 @@ int validLabel(const char * labelName, char * errMsg) {
 	}
 	
 	while ( (testChar = labelName[i++]) != '\0' ) {
-		if ( !( isalnum(testChar) || (testChar != '_') ) ) {
+		if ( !( isalnum(testChar) || (testChar == '_') ) ) {
 			strcpy(errMsg, ERR_PARSE_LBL_BAD_CHAR);
+			errMsg[strlen(errMsg)-2] = testChar;
 			return -1;
 		}
 	}
 	
-	if ( findCommand(labelName) == NULL ) {
+	if ( findCommand(labelName) != NULL ) {
 		strcpy(errMsg, ERR_PARSE_LBL_CMD_COLL);
 		return -1;
 	}
@@ -191,11 +222,11 @@ int defineLabel(const char * labelName, char * errMsg, symbolTab_t symbolTable, 
 			case 'D':
 				setTypeM(thisLabel);
 			case 'M':
-				errMsg = ERR_LBL_MULT_DEF;
+				strcpy(errMsg, ERR_LBL_MULT_DEF);
 				return -1;
 				break;
 			default:
-				errMsg = ERR_LBL_UNKWN_TYPE;
+				strcpy(errMsg, ERR_LBL_UNKWN_TYPE);
 				return -1;
 				break;
 		}
@@ -217,16 +248,65 @@ int defineLabel(const char * labelName, char * errMsg, symbolTab_t symbolTable, 
 
 int main(int argc, const char* argv[]) {
 	symbol_ptr * symbolTable = NULL;
-	int i=0;
+	char 		 lineBuffer[256] = "TEST_TOOMANY:TOOMANY;commentcomment";
+	unsigned long locCount = 0;
+	unsigned long bramOff  = 0;
+	char *	errPtr = NULL;
+	int i = 0;
+	
 	symbolTable = newSymbolTable();
 	
-	lfsrChar((unsigned int) symbolTable);
+	/*lfsrChar((unsigned int) symbolTable);
 	for (i=0; i<250; i++) {
 		char * randWord = lfsrWord((unsigned int) -1);
 		printf("%s\r\n", randWord);
 		addSymbol(randWord, symbolTable);
 	}
+	*/
+
+	errPtr = processLinePass1(lineBuffer, strlen(lineBuffer), symbolTable, &locCount, &bramOff);
+	if (errPtr != NULL) printf("%s\r\n\n", errPtr);
 	
+	strcpy(lineBuffer, "TESTLOAD:LOAD 1,2; Loading");
+	errPtr = processLinePass1(lineBuffer, strlen(lineBuffer), symbolTable, &locCount, &bramOff);
+	if (errPtr != NULL) printf("%s\r\n\n", errPtr);
+	
+	strcpy(lineBuffer, "TEST@LOAD:LOAD 1,2; Loading");
+	errPtr = processLinePass1(lineBuffer, strlen(lineBuffer), symbolTable, &locCount, &bramOff);
+	if (errPtr != NULL) printf("%s\r\n\n", errPtr);
+	
+	strcpy(lineBuffer, "LONGCOMMAND;");
+	errPtr = processLinePass1(lineBuffer, strlen(lineBuffer), symbolTable, &locCount, &bramOff);
+	if (errPtr != NULL) printf("%s\r\n\n", errPtr);
+
+	strcpy(lineBuffer, "JUMPTEST:JMP TESTLOAD, LONGCOMMAND; Pick some spots to jump to");
+	errPtr = processLinePass1(lineBuffer, strlen(lineBuffer), symbolTable, &locCount, &bramOff);
+	if (errPtr != NULL) printf("%s\r\n\n", errPtr);
+
+	strcpy(lineBuffer, ":JMP TESTLOAD, LONGCOMMAND; Pick some spots to jump to");
+	errPtr = processLinePass1(lineBuffer, strlen(lineBuffer), symbolTable, &locCount, &bramOff);
+	if (errPtr != NULL) printf("%s\r\n\n", errPtr);
+
+	strcpy(lineBuffer, "JUMPTEST:JMP TESTLOAD, LONGCOMMAND");
+	errPtr = processLinePass1(lineBuffer, strlen(lineBuffer), symbolTable, &locCount, &bramOff);
+	if (errPtr != NULL) printf("%s\r\n\n", errPtr);
+
+	strcpy(lineBuffer, "78JumpStreet:JMP TESTLOAD, LONGCOMMAND; Pick some spots to jump to");
+	errPtr = processLinePass1(lineBuffer, strlen(lineBuffer), symbolTable, &locCount, &bramOff);
+	if (errPtr != NULL) printf("%s\r\n\n", errPtr);
+
+	strcpy(lineBuffer, "LOAD:JMP TESTLOAD, LONGCOMMAND; Pick some spots to jump to");
+	errPtr = processLinePass1(lineBuffer, strlen(lineBuffer), symbolTable, &locCount, &bramOff);
+	if (errPtr != NULL) printf("%s\r\n\n", errPtr);
+
+	strcpy(lineBuffer, "FRUMPTEST:WHOOHOO TESTLOAD, LONGCOMMAND; Pick some spots to jump to");
+	errPtr = processLinePass1(lineBuffer, strlen(lineBuffer), symbolTable, &locCount, &bramOff);
+	if (errPtr != NULL) printf("%s\r\n\n", errPtr);
+
+	strcpy(lineBuffer, "JUMPTEST:JMP TESTLOAD, LONGCOMMAND; Pick some spots to jump to");
+	errPtr = processLinePass1(lineBuffer, strlen(lineBuffer), symbolTable, &locCount, &bramOff);
+	if (errPtr != NULL) printf("%s\r\n\n", errPtr);
+
 	printHashTable(symbolTable);
 	
 	freeSymbolTable(symbolTable);
