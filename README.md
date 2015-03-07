@@ -59,3 +59,8 @@ Assuming for the time being a const C-struct array, with the struct formatted as
 
 Because a `LOAD` or similar command will exist, we'll need a special assembler directive `SETLC` or similar.  This would indicate to the assembler that the location counter has a new value so that the symbols used to set up `JUMP`s &c. will point to appropriate locations.  This directive would not emit any machine code to memory, rather it would only change the internal state of the assembler.
 
+## Assembler Directives
+Assembler directives alter the internal state of the assembler without causing any machine code to be output.
+  - `LIT` Sets up a mapping from a string to a value
+  - `SETLC` Sets the location counter to a specified value. Used for the results of jump and/or move commands and their effects on the stack.
+  
