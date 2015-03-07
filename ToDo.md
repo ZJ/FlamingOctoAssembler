@@ -7,10 +7,10 @@
   - [x] Add BRAM offset to symbol table
   - [x] Add literal table
   - [x] Check initialization in newSymbol()
-  - [ ] gperf/gnuperf working
-  - [ ] Generate a dummy command table
-  - [ ] Implement processCmd()
-  - [ ] Implement findCommand()
+  - [x] gperf/gnuperf working
+  - [x] Generate a dummy command table
+  - [x] Implement processCmd()
+  - [x] Implement findCommand()
   - [ ] Shift some functions out of driver.c
   - [ ] Test 1st pass on a dummy file
 
