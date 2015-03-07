@@ -48,14 +48,10 @@ Assuming for the time being a const C-struct array, with the struct formatted as
 	- [3:7] _Reserved_ (Currently no effect, but set to 0 or face weird behavior in the future) 
 
 ### Example Commands
-	- "DQ"     , 0x??, 1, 1, 0x01; Storing 1 quad  (64-bits) in place
-	- "DL"     , 0x??, 2, 1, 0x11; Storing 2 longs (32-bits) in place
-	- "DW"     , 0x??, 4, 1, 0x21; Storing 4 words (16-bits) in place
-	- "DB"     , 0x??, 8, 1, 0x31; Storing 8 bytes ( 8-bits) in place
-	- "BRANCH" , 0x??, 4, 2, 0x1E; Write in branch's opcode, then 4 number corresponding to jump locations. _OR_
-	- "BRANCH" , 0x??, 3, 2, 0x1C; Write in branch's opcode, then 3 numbers corresponding to jump locations. Plus fall-through for branch 0
-	- "JUMP"   , 0x??, 1, 1, 0x0C; Write in jumps's opcode, the the jump location in the timecode field (Or use flags = 0x06 and write it to the data field)
-	- "NEXTBLK", 0x??, 0, 1, 0x02; Write just NEXTBLK's opcode and nothing else
+	- "BRANCH"  , 0x??, 2, 0x07; Write in branch's opcode, then the first two branch locations
+	- "BRNCHDAT", 0x??, 2, 0x07; Write in branch data's opcode, then the next two locations
+	- "JUMP"    , 0x??, 1, 0x03; Write in jumps's opcode, the the jump location in the timecode field (Or use flags = 0x05 and write it to the data field)
+	- "NEXTBLK" , 0x??, 0, 0x01; Write just NEXTBLK's opcode and nothing else
 
 ## Special Considerations
 
