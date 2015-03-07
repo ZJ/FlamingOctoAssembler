@@ -34,30 +34,18 @@ Noting that:
     - OpCode (8 bits)
     - Data (24 bits)
     - Timecode (32 bits)
-  - Subsequent lines (part of same instruction) are data aligned on 8-, 16-, 32-, or 64-bit boundaries as defined by that instruction
+  - ~~Subsequent lines (part of same instruction) are data aligned on 8-, 16-, 32-, or 64-bit boundaries as defined by that instruction~~ _Every opcode is now a single line_
 
 ## Command Translation Table Format
 Assuming for the time being a const C-struct array, with the struct formatted as:
   - `unsigned char[9] command` for the command string (Max 8 characters plus the null-terminator)
   - `unsigned char opcode` for the opcode value
   - `unsigned char numArgs` for the total number of arguments to expect
-  - `unsigned char numLines` for the total number of 64-bit memory lines it'll occupy
   - `unsigned char flags` to hold a bunch of fields describing how to map arguments into memory:
-    - 0 (LSB): "Data Instruction" if set this is for data storage _ONLY_, so ignore OpCode, Data, and Timecode fields
-    - 1: "Write OpCode" if set writes the OpCode to the high byte of the first line.  Will also mask that byte from any attempted writes to the Data or Timecode fields.  If not set, will be available for the Data field to write in, or if the Data field is also unused, the Timecode field. _Ignored if bit 0 is set_
-    - 2: "Write Data" if set writes the first argument to the Data field, and masks Data field bytes from attempted writes to the Timecode field. If not set, all bytes will be available to the Timecode field for writing. _Ignored if bit 0 is set_
-    - 3: "Write Timecode" if set writes the next argument to the Timecode field.  Will be able to write into either the low 32-, 56, or 64- bytes depenending on the setting of bits 1 and 2. _Ignored if bit 0 is set_
-    - [4:5] "Data Alignment" sets the data size for writes to the 2nd (or first if bit 0 is set) and following lines.
-      - Remaining arguments will be written in order, earliest reserved line to latest, least significant byte to most.
-      - Bits determine data per line, as in 2^[bits] words:
-        - `00` is a single 64-bit word per line
-        - `01` is two 32-bit words
-        - `10` is four 16-bit words
-        - `11` is eight 8-bit words
-      - Values given in the ARGN fields will be masked to the appropriate size, keeping the LSBs.
-      - Empty fields will have all bits set (e.g. if you want to store 3 32-bit words in 2 memory lines, the unused spot will be filled with `0xFFFF_FFFF`)
-    - 6: _Reserved_ (Currently no effect, but set to 0 or face weird behavior in the future)
-    - 7: Compiler Directive: Marks the command as actually being a compiler directive. See individual directives for use of other fields.
+    - 0: "Write OpCode" if set writes the OpCode to the high byte of the first line.  Will also mask that byte from any attempted writes to the Data or Timecode fields.  If not set, will be available for the Data field to write in, or if the Data field is also unused, the Timecode field. _Ignored if bit 0 is set_
+    - 1: "Write Data" if set writes the first argument to the Data field, and masks Data field bytes from attempted writes to the Timecode field. If not set, all bytes will be available to the Timecode field for writing. _Ignored if bit 0 is set_
+    - 2: "Write Timecode" if set writes the next argument to the Timecode field.  Will be able to write into either the low 32-, 56, or 64- bytes depenending on the setting of bits 1 and 2. _Ignored if bit 0 is set_
+	- [3:7] _Reserved_ (Currently no effect, but set to 0 or face weird behavior in the future) 
 
 ### Example Commands
 	- "DQ"     , 0x??, 1, 1, 0x01; Storing 1 quad  (64-bits) in place
