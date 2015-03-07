@@ -1,10 +1,13 @@
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 
 #include "symbolHashTable/symbolHashTable.h"
 #include "commandTable/cmdTableFormat.h"
 #include "commandTable/cmdTableTest.h"
 #include "errs/parserErrs.h"
+
+#include "testFile.h"
 
 #define	NUM_CORES 1
 
@@ -88,6 +91,7 @@ char * processLinePass1(char * lineBuffer, int lineLength, symbolTab_t symbolTab
 	static int argCnt = 0;
 	
 	while ( isspace(*lineBuffer) ) lineBuffer++; // Skip leading space, if any
+	if (*lineBuffer == '\0') return NULL; // Empty line!
 	
 	// Find closing semicolon, or report error
 	buffPos = strchr(lineBuffer, COMMENT_START);
@@ -97,8 +101,6 @@ char * processLinePass1(char * lineBuffer, int lineLength, symbolTab_t symbolTab
 	} else {
 		*buffPos = '\0';
 	}
-
-	if (*lineBuffer == '\0') return NULL; // Empty line!
 	
 	// Find label delimiter, if any
 	buffPos = strchr(lineBuffer, LABEL_END);
@@ -248,11 +250,17 @@ int defineLabel(const char * labelName, char * errMsg, symbolTab_t symbolTable, 
 
 int main(int argc, const char* argv[]) {
 	symbol_ptr * symbolTable = NULL;
-	char 		 lineBuffer[256] = "TEST_TOOMANY:TOOMANY;commentcomment";
+	char * 		 lineBuffer = NULL;
+	int			 bufferLength = 256;
 	unsigned long locCount = 0;
 	unsigned long bramOff  = 0;
 	char *	errPtr = NULL;
 	int i = 0;
+	unsigned int lineCount = 0;
+	char * strPtr = gTestString;
+	
+	lineBuffer = malloc(bufferLength + 1);
+	if (lineBuffer == NULL) return -1;
 	
 	symbolTable = newSymbolTable();
 	
@@ -263,51 +271,32 @@ int main(int argc, const char* argv[]) {
 		addSymbol(randWord, symbolTable);
 	}
 	*/
-
-	errPtr = processLinePass1(lineBuffer, strlen(lineBuffer), symbolTable, &locCount, &bramOff);
-	if (errPtr != NULL) printf("%s\r\n\n", errPtr);
-	
-	strcpy(lineBuffer, "TESTLOAD:LOAD 1,2; Loading");
-	errPtr = processLinePass1(lineBuffer, strlen(lineBuffer), symbolTable, &locCount, &bramOff);
-	if (errPtr != NULL) printf("%s\r\n\n", errPtr);
-	
-	strcpy(lineBuffer, "TEST@LOAD:LOAD 1,2; Loading");
-	errPtr = processLinePass1(lineBuffer, strlen(lineBuffer), symbolTable, &locCount, &bramOff);
-	if (errPtr != NULL) printf("%s\r\n\n", errPtr);
-	
-	strcpy(lineBuffer, "LONGCOMMAND;");
-	errPtr = processLinePass1(lineBuffer, strlen(lineBuffer), symbolTable, &locCount, &bramOff);
-	if (errPtr != NULL) printf("%s\r\n\n", errPtr);
-
-	strcpy(lineBuffer, "JUMPTEST:JMP TESTLOAD, LONGCOMMAND; Pick some spots to jump to");
-	errPtr = processLinePass1(lineBuffer, strlen(lineBuffer), symbolTable, &locCount, &bramOff);
-	if (errPtr != NULL) printf("%s\r\n\n", errPtr);
-
-	strcpy(lineBuffer, ":JMP TESTLOAD, LONGCOMMAND; Pick some spots to jump to");
-	errPtr = processLinePass1(lineBuffer, strlen(lineBuffer), symbolTable, &locCount, &bramOff);
-	if (errPtr != NULL) printf("%s\r\n\n", errPtr);
-
-	strcpy(lineBuffer, "JUMPTEST:JMP TESTLOAD, LONGCOMMAND");
-	errPtr = processLinePass1(lineBuffer, strlen(lineBuffer), symbolTable, &locCount, &bramOff);
-	if (errPtr != NULL) printf("%s\r\n\n", errPtr);
-
-	strcpy(lineBuffer, "78JumpStreet:JMP TESTLOAD, LONGCOMMAND; Pick some spots to jump to");
-	errPtr = processLinePass1(lineBuffer, strlen(lineBuffer), symbolTable, &locCount, &bramOff);
-	if (errPtr != NULL) printf("%s\r\n\n", errPtr);
-
-	strcpy(lineBuffer, "LOAD:JMP TESTLOAD, LONGCOMMAND; Pick some spots to jump to");
-	errPtr = processLinePass1(lineBuffer, strlen(lineBuffer), symbolTable, &locCount, &bramOff);
-	if (errPtr != NULL) printf("%s\r\n\n", errPtr);
-
-	strcpy(lineBuffer, "FRUMPTEST:WHOOHOO TESTLOAD, LONGCOMMAND; Pick some spots to jump to");
-	errPtr = processLinePass1(lineBuffer, strlen(lineBuffer), symbolTable, &locCount, &bramOff);
-	if (errPtr != NULL) printf("%s\r\n\n", errPtr);
-
-	strcpy(lineBuffer, "JUMPTEST:JMP TESTLOAD, LONGCOMMAND; Pick some spots to jump to");
-	errPtr = processLinePass1(lineBuffer, strlen(lineBuffer), symbolTable, &locCount, &bramOff);
-	if (errPtr != NULL) printf("%s\r\n\n", errPtr);
+	//while ( getLine(&lineBuffer, &bufferLength, stream) != -1 )
+	while( *strPtr != '\0' ) {
+		char * endOfLine = strPtr;
+		lineCount++;
+		// Building a line buffer formation unit here
+		endOfLine = strchr(strPtr,'\n');
+		if (endOfLine != NULL) {
+			size_t len = (endOfLine-strPtr);
+			strncpy(lineBuffer, strPtr, len);
+			* (lineBuffer + (len)) = '\0';
+			strPtr = ++endOfLine;
+		} else {
+			strcpy(lineBuffer, strPtr);
+			strPtr = strchr(strPtr, '\0');
+		}
+		//printf("%4u:\t%s\n",lineCount,lineBuffer);
+		errPtr = processLinePass1(lineBuffer, strlen(lineBuffer), symbolTable, &locCount, &bramOff);
+		if (errPtr != NULL) printf("On line %u:\n\t%s\r\n\n", lineCount, errPtr);
+		//break;		
+	}
+	printf("\nOrig. Buffer:\n%s\n",gTestString);
 
 	printHashTable(symbolTable);
 	
 	freeSymbolTable(symbolTable);
+	
+	free(lineBuffer);
+	lineBuffer = NULL;
 }

@@ -1,0 +1,1 @@
+char gTestString[] = "START:\tLOAD\tFROM, TO\t; Loading that block\n\n\tNEXTBLK\t\t\t; Skip to the next block\nNOTNOW:\tJMP\tTARG1, TARG2\t; Jump to places\n\tJMPDATA\tTARG3, TARG4\t; The rest of the jump\nBrownCow:NEXTBLK;\nTriple:NEXTBLK;\nEND:NEXTBLK;";
