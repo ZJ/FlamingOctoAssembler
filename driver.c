@@ -184,7 +184,7 @@ char * processLinePass1(char * lineBuffer, int lineLength, symbolTab_t symbolTab
 	return NULL;
 }
 
-/*	\brief	Takes a label name and checks if it has a valid format.
+/*!	\brief	Takes a label name and checks if it has a valid format.
  *
  *	\todo	Needs a check against known commands via findCommand()
  *
@@ -216,7 +216,7 @@ int validLabel(const char * labelName, char * errMsg) {
 	return 0;
 }
 
-/*	\brief Takes a label name and attempts to update the symbol table
+/*!	\brief Takes a label name and attempts to update the symbol table
  *
  *	\returns  0 on success
  *	\returns -1 on failure
