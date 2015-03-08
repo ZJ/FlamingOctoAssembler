@@ -20,6 +20,8 @@ extern "C" {
  * 223, 227, 229, 233, 239, 241, 251
  */
  
+#define MAX_LIT_NAME_LEN 127 
+ 
 #define SYMBOL_TABLE_SIZE	251 //!< The number of buckets in the symbol table.
 // The smallest prime to fit into an unsigned char is 251
 #define LITERAL_TABLE_SIZE	53	//!< The number of buckets in the literals table
@@ -56,6 +58,15 @@ typedef struct literal {
 } literal_t;
 typedef literal_t * literal_ptr;	//!< Pointer to a ::literal (::literal_t) object
 typedef literal_ptr * literalTab_t;	//!< Pointer to a ::literal_ptr, represents root of a literal table
+
+// Table-grouping struct
+typedef struct runtimeTables {
+	symbolTab_t 	symbolTab;
+	literalTab_t	literalTab;
+} runtimeTables_t;
+typedef runtimeTables_t * runtimeTables_ptr;
+
+typedef enum {DIRECTIVE, NOTDIRECTIVE, ERROR} directiveStatus;
 
 // Hash & Index-related functions
 /*!	\brief	Takes a C-style string and return the raw Shift-Add-XOR hash
@@ -227,6 +238,9 @@ literal_ptr addLiteral(const unsigned char * literalName, literalTab_t literalTa
  *	\param objectToSet (::symbol_ptr or ::literal_ptr)
  */
 #define setTypeM(objectToSet) (objectToSet)->type = 'M'
+
+/*! \brief Mark object's type as Literal */
+#define setTypeL(objectToSet) (objectToSet)->type = 'L'
 
 // C++ extern C fence end
 #ifdef __cplusplus

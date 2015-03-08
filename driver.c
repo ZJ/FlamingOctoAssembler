@@ -24,13 +24,18 @@
 
 cmdFindFunct_ptr cmdLookupHandles[NUM_CORES] = {&TEST_CORE_CMD_LOOKUP};
 
+typedef struct progCounters {
+	unsigned long locCount;
+	unsigned long bramOffset;
+} progCnt_t;
+
 inline char * enlargeBuffer(char * buffer, unsigned int numChars) {
 	if (DEBUG_PRINT) printf("Enlarging line buffer to %u\n", numChars);
 	return realloc(buffer, (numChars+1)*sizeof(char));
 }
 
 void printSymbol(symbol_ptr toPrint) {
-	printf("\t @ 0x%08x %s \t%c \t%d \t0x%08x\n\r", toPrint, toPrint->name, toPrint->type, toPrint->locCount, toPrint->next);
+	printf("\t @ 0x%08x %s \t%c \t%d \t%d \t0x%08x\n\r", toPrint, toPrint->name, toPrint->type, toPrint->locCount, toPrint->bramOffset, toPrint->next);
 }
 
 void printChain(symbol_ptr head) {
@@ -82,6 +87,100 @@ cmdEntry_ptr processCmd(const char * cmdStr, char * errMsg, unsigned long * locC
 	return theCmd;
 }
 
+directiveStatus processLitDec(const char * restLine, char * errMsg, literalTab_t litTab) {
+	literal_ptr	litPtr = NULL;
+	unsigned long litVal = 0;
+	char * scanPos = restLine;
+	char litName[MAX_LIT_NAME_LEN+1];
+	int i = 0;
+	
+	while( isspace(*scanPos) ) scanPos++; //Skip whitespace
+	
+	if( !isalpha(*scanPos) ) {
+		strcpy(errMsg, ERR_LIT_LETTER);
+		return ERROR;
+	}
+	
+	for (i=0; i < MAX_LIT_NAME_LEN; i++) {
+		// Process Line for command Here
+		if ( isspace(*scanPos) || ((*scanPos) == '\0') ) {
+			litName[i] = '\0';
+			break;
+		}
+		litName[i] = *scanPos;
+		scanPos++;
+	}
+	
+	if ( memchr(litName, '\0', MAX_LIT_NAME_LEN+1) == NULL ) {
+		strcpy(errMsg, ERR_PARSE_CMD_LONG);
+		return ERROR;
+	}
+	
+	litPtr = findLiteral(litName, litTab);
+	if ((litPtr != NULL) && (litPtr->type != 'U')) {
+		setTypeM(litPtr);
+		strcpy(errMsg, ERR_LIT_MULT_DEF);
+		return ERROR;
+	}
+	
+	litPtr = addLiteral(litName, litTab);
+	if (litPtr == NULL) {
+		strcpy(errMsg, ERR_LBL_ALLOC_FAIL);
+		return ERROR;
+	}
+	
+	litVal = strtoul(scanPos, &scanPos, 0);
+	while( isspace(*scanPos) ) scanPos++; //Skip whitespace
+	// If we hit anything at all besides a null char (formerly the closing semicolon
+	// this is improperly formatted SETLC directive
+	if ( *scanPos != '\0' ) {
+		printf("Where we're at: %s", scanPos);
+		strcpy(errMsg, ERR_LIT_FORMAT);
+		return ERROR;
+	}
+	
+	// If we're here, we can safely put in the value
+	litPtr->value = litVal;
+	if (DEBUG_PRINT) printf("LIT \"%s\" = %u.\n", litPtr->name, litPtr->value);
+	return DIRECTIVE;
+}
+
+directiveStatus processSetLC(const char * restLine, char * errMsg, progCnt_t * progCnt) {
+	unsigned long newLC = progCnt->locCount;
+	char * checkEnding = NULL;
+	newLC = strtoul(restLine, &checkEnding, 0);
+	
+	while( isspace(*checkEnding) ) checkEnding++; //Skip whitespace
+	
+	// If we hit anything at all besides a null char (formerly the closing semicolon
+	// this is improperly formatted SETLC directive
+	if ( *checkEnding != '\0' ) {
+		strcpy(errMsg, ERR_LIT_FORMAT);
+		return ERROR;
+	}
+	
+	if (DEBUG_PRINT) printf("New LC via SETLC:\t%u\n", newLC);
+	progCnt->locCount = newLC;
+	
+	return DIRECTIVE;
+}
+
+directiveStatus processDirective(const char * cmdStr, char * restLine, char * errMsg, progCnt_t * progCnt, runtimeTables_ptr tables) {
+	switch (*(cmdStr++)) {
+		case 'L':
+			if ( strcmp(cmdStr, /*L*/"IT") == 0 ) return processLitDec(restLine, errMsg, tables->literalTab);
+			// Do more ifs for other 'L' directives
+			break;
+		case 'S':
+			if ( strcmp(cmdStr, /*S*/"ETLC") == 0 ) return processSetLC(restLine, errMsg, progCnt);
+			// Do more ifs for other 'S'
+			break;
+		default:
+			break;
+	}
+	return NOTDIRECTIVE; // We've not returns from any special code, so NOTDIRECTIVE.
+}
+
 /*!	\brief	Handles pass 1 tasks for a passed line of the assembly file.
  *	\details - Searches for label definitions to build the symbol table, and checks that none a multiply defined.
  *			 - Also checks for literal definitions and creates those
@@ -92,7 +191,7 @@ cmdEntry_ptr processCmd(const char * cmdStr, char * errMsg, unsigned long * locC
  *	\returns	NULL on success
  *	\returns	pointer to error description on failure (for printing)
  */
-char * processLinePass1(char * lineBuffer, int lineLength, symbolTab_t symbolTable, unsigned long * locCount, unsigned long * bramOff) {
+char * processLinePass1(char * lineBuffer, int lineLength, runtimeTables_ptr tables, progCnt_t * progCnt) {
 	static char labelStr[256] = "";
 	static char cmdStr[9] = "";
 	static char errMsg[256] = "";
@@ -100,6 +199,9 @@ char * processLinePass1(char * lineBuffer, int lineLength, symbolTab_t symbolTab
 	static cmdEntry_ptr	thisCmd = NULL;
 	static int i = 0;
 	static int argCnt = 0;
+	symbolTab_t  symbolTable  = tables->symbolTab;
+	literalTab_t literalTable = tables->literalTab;
+	static directiveStatus checkDir = NOTDIRECTIVE;
 	
 	while ( isspace(*lineBuffer) ) lineBuffer++; // Skip leading space, if any
 	if (*lineBuffer == '\0') return NULL; // Empty line!
@@ -128,7 +230,7 @@ char * processLinePass1(char * lineBuffer, int lineLength, symbolTab_t symbolTab
 		strcpy(labelStr, lineBuffer);
 		lineBuffer = ++buffPos;
 		
-		if (defineLabel(labelStr, errMsg, symbolTable, *locCount, *bramOff) != 0) return errMsg; //Problem defining the label
+		if (defineLabel(labelStr, errMsg, symbolTable, progCnt->locCount, progCnt->bramOffset) != 0) return errMsg; //Problem defining the label
 		
 		while ( isspace(*lineBuffer) ) lineBuffer++; // Skip whitespace between label and cmd
 	}
@@ -147,19 +249,24 @@ char * processLinePass1(char * lineBuffer, int lineLength, symbolTab_t symbolTab
 		lineBuffer++;
 	}
 
-	if ( cmdStr[0] != '\0' ) {
-		thisCmd = processCmd(cmdStr, errMsg, locCount, bramOff);
-		if ( thisCmd == NULL ) return errMsg; // Problem looking up command. Report the error
-	} else {
+	if ( cmdStr[0] == '\0' ) {
 		strcpy(errMsg, ERR_PARSE_CMD_LONG);
 		return errMsg;
 	}
-
-	// If we're here, the command entry is stashed in thisCmd, so we can keep processing
-	*locCount   += thisCmd->numLines;
-	*bramOff    += (thisCmd->numLines * CMD_BYTES);
+	
+	checkDir = processDirective(cmdStr, lineBuffer, errMsg, progCnt, tables);
+	if ( checkDir == DIRECTIVE ) return NULL;
+	if ( checkDir == ERROR ) return errMsg;
+	
+	// This far means we're expecting an actual command
+	thisCmd = processCmd(cmdStr, errMsg, &(progCnt->locCount), &(progCnt->bramOffset));
+	if ( thisCmd == NULL ) return errMsg; // Problem looking up command. Report the error
 	
 
+	// If we're here, the command entry is stashed in thisCmd, so we can keep processing
+	progCnt->locCount	+= thisCmd->numLines;
+	progCnt->bramOffset	+= (thisCmd->numLines * CMD_BYTES);
+	
 	// Check for correct number of arguments
 	// (don't bother resolving symbols and literals at this time, that is in pass 2)
 	// In other words, don't even look at the content of the stuff, just count.
@@ -260,10 +367,12 @@ int defineLabel(const char * labelName, char * errMsg, symbolTab_t symbolTable, 
 }
 
 int main(int argc, const char* argv[]) {
-	symbol_ptr * symbolTable = NULL;
+	symbolTab_t  symbolTable  = NULL;
 	literalTab_t literalTable = NULL;
+	runtimeTables_t  runTable; 
 	char * 		 lineBuffer = NULL;
 	int			 bufferLength = START_LINE_BUFF_SIZE;
+	progCnt_t	progCnt = {0, 0};
 	unsigned long locCount = 0;
 	unsigned long bramOff  = 0;
 	char *	errPtr = NULL;
@@ -287,6 +396,9 @@ int main(int argc, const char* argv[]) {
 		printf("Problem allocating literal table\n");
 		return -1;
 	}
+	
+	runTable.symbolTab  = symbolTable;
+	runTable.literalTab = literalTable;
 	
 	while( *strPtr != '\0' ) {
 		char * endOfLine = strPtr;
@@ -322,7 +434,7 @@ int main(int argc, const char* argv[]) {
 			strPtr = strchr(strPtr, '\0');
 		}
 		//printf("%4u:\t%s\n",lineCount,lineBuffer);
-		errPtr = processLinePass1(lineBuffer, strlen(lineBuffer), symbolTable, &locCount, &bramOff);
+		errPtr = processLinePass1(lineBuffer, strlen(lineBuffer), &runTable, &progCnt);
 		if (errPtr != NULL) printf("On line %u:\n\t%s\r\n\n", lineCount, errPtr);
 		//break;		
 	}

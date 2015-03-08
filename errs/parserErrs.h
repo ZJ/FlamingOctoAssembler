@@ -14,3 +14,7 @@
 #define ERR_LBL_MULT_DEF		"Multiply-defined label found"
 #define ERR_LBL_UNKWN_TYPE		"Internal Error: unknown label type encountered"
 #define ERR_LBL_ALLOC_FAIL		"Internal Error: failed to allocate label"
+
+#define ERR_LIT_FORMAT			"LIT directive improperly formatted"
+#define ERR_LIT_LETTER			"LIT names must start with a letter"
+#define ERR_LIT_MULT_DEF		"Multiply-defined literal found"
