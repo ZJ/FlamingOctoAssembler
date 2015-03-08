@@ -11,12 +11,23 @@
 
 #define	NUM_CORES 1
 
+#define TRUE	1
+#define FALSE	0
+
+#define DEBUG_PRINT	TRUE
+
+#define START_LINE_BUFF_SIZE 128
+
 // This doesn't frigging work
 #define TEST_CORE_CMD_LOOKUP getCmdTest
 // Define up to the right number of cores
 
 cmdFindFunct_ptr cmdLookupHandles[NUM_CORES] = {&TEST_CORE_CMD_LOOKUP};
 
+inline char * enlargeBuffer(char * buffer, unsigned int numChars) {
+	if (DEBUG_PRINT) printf("Enlarging line buffer to %u\n", numChars);
+	return realloc(buffer, (numChars+1)*sizeof(char));
+}
 
 void printSymbol(symbol_ptr toPrint) {
 	printf("\t @ 0x%08x %s \t%c \t%d \t0x%08x\n\r", toPrint, toPrint->name, toPrint->type, toPrint->locCount, toPrint->next);
@@ -29,7 +40,7 @@ void printChain(symbol_ptr head) {
 
 void printHashTable(symbol_ptr * symbolTable) {
 	red_hash_t i;
-	puts("Printing table:\n\r");
+	printf("Printing table:\n\r");
 	for (i=0; i<SYMBOL_TABLE_SIZE; i++) {
 		printf("%d:\t0x%08x\n\r", i, symbolTable[i]);
 		if (symbolTable[i] != NULL) printChain(symbolTable[i]);
@@ -250,8 +261,9 @@ int defineLabel(const char * labelName, char * errMsg, symbolTab_t symbolTable, 
 
 int main(int argc, const char* argv[]) {
 	symbol_ptr * symbolTable = NULL;
+	literalTab_t literalTable = NULL;
 	char * 		 lineBuffer = NULL;
-	int			 bufferLength = 256;
+	int			 bufferLength = START_LINE_BUFF_SIZE;
 	unsigned long locCount = 0;
 	unsigned long bramOff  = 0;
 	char *	errPtr = NULL;
@@ -259,19 +271,23 @@ int main(int argc, const char* argv[]) {
 	unsigned int lineCount = 0;
 	char * strPtr = gTestString;
 	
-	lineBuffer = malloc(bufferLength + 1);
+	if (DEBUG_PRINT) printf("++++====++++\nIn main()\n");
+	
+	lineBuffer = malloc((bufferLength + 1) * sizeof(char));
 	if (lineBuffer == NULL) return -1;
 	
 	symbolTable = newSymbolTable();
-	
-	/*lfsrChar((unsigned int) symbolTable);
-	for (i=0; i<250; i++) {
-		char * randWord = lfsrWord((unsigned int) -1);
-		printf("%s\r\n", randWord);
-		addSymbol(randWord, symbolTable);
+	if (symbolTable == NULL) {
+		printf("Problem allocating symbol table\n");
+		return -1;
 	}
-	*/
-	//while ( getLine(&lineBuffer, &bufferLength, stream) != -1 )
+	
+	literalTable = newLiteralTable();
+	if (literalTable == NULL) {
+		printf("Problem allocating literal table\n");
+		return -1;
+	}
+	
 	while( *strPtr != '\0' ) {
 		char * endOfLine = strPtr;
 		lineCount++;
@@ -279,10 +295,29 @@ int main(int argc, const char* argv[]) {
 		endOfLine = strchr(strPtr,'\n');
 		if (endOfLine != NULL) {
 			size_t len = (endOfLine-strPtr);
+			if (len > bufferLength) {
+				if (DEBUG_PRINT) printf("len: %u, buffLen: %u\n", len, bufferLength);
+				lineBuffer = enlargeBuffer(lineBuffer, len);
+				if (lineBuffer == NULL) {
+					printf("Ran out of memory resizing line buffer\n");
+					return -1;
+				}
+				bufferLength = len;
+			}
 			strncpy(lineBuffer, strPtr, len);
 			* (lineBuffer + (len)) = '\0';
 			strPtr = ++endOfLine;
 		} else {
+			size_t len = strlen(strPtr);
+			if (len > bufferLength) {
+				if (DEBUG_PRINT) printf("len: %u, buffLen: %u\n", len, bufferLength);
+				lineBuffer = enlargeBuffer(lineBuffer, len);
+				if (lineBuffer == NULL) {
+					printf("Ran out of memory resizing line buffer\n");
+					return -1;
+				}
+				bufferLength = len;
+			}
 			strcpy(lineBuffer, strPtr);
 			strPtr = strchr(strPtr, '\0');
 		}
@@ -291,11 +326,15 @@ int main(int argc, const char* argv[]) {
 		if (errPtr != NULL) printf("On line %u:\n\t%s\r\n\n", lineCount, errPtr);
 		//break;		
 	}
-	printf("\nOrig. Buffer:\n%s\n",gTestString);
+	if (DEBUG_PRINT) printf("\nOrig. Buffer:\n%s\n",gTestString);
 
-	printHashTable(symbolTable);
+	if (DEBUG_PRINT) printHashTable(symbolTable);
 	
 	freeSymbolTable(symbolTable);
+	symbolTable = NULL;
+	
+	freeLiteralTable(literalTable);
+	literalTable = NULL;
 	
 	free(lineBuffer);
 	lineBuffer = NULL;
