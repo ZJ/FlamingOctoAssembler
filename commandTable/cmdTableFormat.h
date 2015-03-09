@@ -22,7 +22,8 @@ extern "C" {
 #define ARG_DELIMIT ','		//!< Delimits arguments to commands
 #define MAX_CMD_LEN 8		//!< Maximum number of characters for a command
 
-#define CMD_NOP 0x3F
+#define CMD_NOP_CODE 0x3E
+#define CMD_ERR_CODE 0x3F	
 
 /*! \name Masks for cmdEntry->flags Field
  *

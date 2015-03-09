@@ -22,9 +22,8 @@ extern "C" {
  
 #define MAX_LIT_NAME_LEN 127 
  
-#define SYMBOL_TABLE_SIZE	251 //!< The number of buckets in the symbol table.
+#define SYMBOL_TABLE_SIZE	41 //!< The number of buckets in the symbol table.
 // The smallest prime to fit into an unsigned char is 251
-#define LITERAL_TABLE_SIZE	53	//!< The number of buckets in the literals table
 
 // Hash-function related typedefs
 typedef unsigned long raw_hash_t; //!< Type returned by the hashing function
@@ -45,27 +44,6 @@ typedef struct symbol {
 typedef symbol_t * symbol_ptr;		//!< Pointer to a ::symbol (::symbol_t) object
 typedef symbol_ptr * symbolTab_t;	//!< Pointer to a ::symbol_ptr, represents root of a symbol table
 
-// Literal-table related typedefs
-/*! \brief	Struct holding information about literals encountered during assembly
- *	\details Ordering is from largest type to smallest, which minimizes the amount of
- *			padding the compiler will insert into the object.
- */
-typedef struct literal {
-	unsigned long	value;		//!< Parsed value for this literal
-	char *			name;		//!< Pointer to C-string containing the name
-	struct literal *next;		//!< Pointer to the next literal in the linked list
-	char			type;		//!< Type of literal ('U'ndefined, 'D'efined, or 'M'ultiply defined)
-} literal_t;
-typedef literal_t * literal_ptr;	//!< Pointer to a ::literal (::literal_t) object
-typedef literal_ptr * literalTab_t;	//!< Pointer to a ::literal_ptr, represents root of a literal table
-
-// Table-grouping struct
-typedef struct runtimeTables {
-	symbolTab_t 	symbolTab;
-	literalTab_t	literalTab;
-} runtimeTables_t;
-typedef runtimeTables_t * runtimeTables_ptr;
-
 typedef enum {DIRECTIVE, NOTDIRECTIVE, ERROR} directiveStatus;
 
 // Hash & Index-related functions
@@ -82,13 +60,6 @@ raw_hash_t getRawHash(const unsigned char *keyString);
  *	\returns	The index to use in the hash table as ::red_hash_t
  */
 red_hash_t getSymbolIndex(const unsigned char *keyString);
-
-/*!	\brief	Takes a C-style string and return the hash-table index
- *
- *	\param[in]	keyString	C-style string containing key to-be-hashed.
- *	\returns	The index to use in the hash table as ::red_hash_t
- */
-red_hash_t getLiteralIndex(const unsigned char *keyString);
 
 // Creating & Freeing Tables
 /*! \brief Creates a new, empty symbol table.
@@ -107,22 +78,6 @@ symbolTab_t newSymbolTable();
  */
 void freeSymbolTable(symbolTab_t symbolTable);
 
-/*! \brief Creates a new, empty literal table.
- *
- *	\returns	A pointer to the new literal table on success
- *	\returns	NULL on failure
- */
-literalTab_t newLiteralTable();
-
-/*! \brief Frees entire literal table, including memory claimed by entries
- *	\details Iterates through the entire table, freeing the linked list (via 
- * 			::freeLiteralChain) rooted at each entry before freeing the literal
- *			table itself.
- *
- *	\param[in] literalTable	the pointer to the root of the literal table
- */
-void freeLiteralTable(literalTab_t literalTable);
-
 // Freeing linked lists
 /*!	\brief Frees a linked list chain
  *	\warning User is responsible for marking head to NULL
@@ -130,13 +85,6 @@ void freeLiteralTable(literalTab_t literalTable);
  *	\param[in] head	a pointer to the head of a linked list.
  */
 void freeSymbolChain(symbol_ptr head);
-
-/*!	\brief Frees a linked list chain
- *	\warning User is responsible for marking head to NULL
- *
- *	\param[in] head	a pointer to the head of a linked list.
- */
-void freeLiteralChain(literal_ptr head);
 
 // Managing symbols/literals (create, find, insert, add)
 /*! \brief	Creates a new symbol with provided name and default values
@@ -147,15 +95,6 @@ void freeLiteralChain(literal_ptr head);
  *	\returns	NULL on failure
  */
 symbol_ptr newSymbol(const unsigned char * symbolName);
-
-/*! \brief	Creates a new literal with provided name and default values
- *	\warning Will return NULL on failure.
- *
- *	\param[in]	literalName	a C-string giving the name for the new symbol
- *	\returns	pointer to the newly-created literal on success
- *	\returns	NULL on failure
- */
-literal_ptr newLiteral(const unsigned char * literalName);
 
 /*! \brief	Searches the table for the given symbol.
  *	\details Searches the symbol table by starting at the root of the bin given by
@@ -168,17 +107,6 @@ literal_ptr newLiteral(const unsigned char * literalName);
  */
 symbol_ptr findSymbol(const unsigned char * symbolName, symbolTab_t symbolTable);
 
-/*! \brief	Searches the table for the given literal.
- *	\details Searches the literal table by starting at the root of the bin given by
- *			hashing the name.
- *
- *	\param[in]	literalName	a C-string giving the name to search for
- *	\param[in]	literalTable	a pointer to the root of the literalTable to search
- *	\returns	pointer to the literal if found
- *	\returns	NULL if the literal is not found
- */
-literal_ptr findLiteral(const unsigned char * literalName, literalTab_t literalTable);
-
 /*! \brief	Inserts a new symbol at the given location in a chain.
  *
  *	\param[in,out]	insertLoc	Pointer to the location at which to insert the
@@ -190,17 +118,6 @@ literal_ptr findLiteral(const unsigned char * literalName, literalTab_t literalT
  */
 void insertSymbol(symbol_ptr * insertLoc, symbol_ptr toInsert);
 
-/*! \brief	Inserts a new literal at the given location in a chain.
- *
- *	\param[in,out]	insertLoc	Pointer to the location at which to insert the
- *								literal. Will be changed to point at the inserted
- *								literal.
- *	\param[in,out]	toInsert	Pointer to the literal to insert.  The "next"
- *								field will be update to point to the rest of the
- *								list.
- */
-void insertLiteral(literal_ptr * insertLoc, literal_ptr toInsert);
-
 /*! \brief	Creates a new symbol and adds it to the appropriate table location.
  *
  *	\warning Does not check for duplicate entries.
@@ -211,17 +128,6 @@ void insertLiteral(literal_ptr * insertLoc, literal_ptr toInsert);
  *	\returns	NULL on failure
  */
 symbol_ptr addSymbol(const unsigned char * symbolName, symbolTab_t symbolTable);
-
-/*! \brief	Creates a new literal and adds it to the appropriate table location.
- *
- *	\warning Does not check for duplicate entries.
- *
- *	\param[in]	literalName	a C-string giving the name to address
- *	\param[in]	literalTable	a pointer to the root of the literal table adding to
- *	\returns	a pointer to the newly-created ::literal on success
- *	\returns	NULL on failure
- */
-literal_ptr addLiteral(const unsigned char * literalName, literalTab_t literalTable);
 
 // Macros to set types.  No need for both symbol and literal versions
 /*!	\brief Mark object's type as Undefined

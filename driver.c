@@ -87,8 +87,8 @@ cmdEntry_ptr processCmd(const char * cmdStr, char * errMsg, unsigned long * locC
 	return theCmd;
 }
 
-directiveStatus processLitDec(const char * restLine, char * errMsg, literalTab_t litTab) {
-	literal_ptr	litPtr = NULL;
+directiveStatus processLitDec(char * restLine, char * errMsg, symbolTab_t litTab) {
+	symbol_ptr	litPtr = NULL;
 	unsigned long litVal = 0;
 	char * scanPos = restLine;
 	char litName[MAX_LIT_NAME_LEN+1];
@@ -116,14 +116,16 @@ directiveStatus processLitDec(const char * restLine, char * errMsg, literalTab_t
 		return ERROR;
 	}
 	
-	litPtr = findLiteral(litName, litTab);
+	if ( validLabel(litName, errMsg) != 0) return ERROR;
+	
+	litPtr = findSymbol(litName, litTab);
 	if ((litPtr != NULL) && (litPtr->type != 'U')) {
 		setTypeM(litPtr);
 		strcpy(errMsg, ERR_LIT_MULT_DEF);
 		return ERROR;
 	}
 	
-	litPtr = addLiteral(litName, litTab);
+	litPtr = addSymbol(litName, litTab);
 	if (litPtr == NULL) {
 		strcpy(errMsg, ERR_LBL_ALLOC_FAIL);
 		return ERROR;
@@ -140,8 +142,10 @@ directiveStatus processLitDec(const char * restLine, char * errMsg, literalTab_t
 	}
 	
 	// If we're here, we can safely put in the value
-	litPtr->value = litVal;
-	if (DEBUG_PRINT) printf("LIT \"%s\" = %u.\n", litPtr->name, litPtr->value);
+	litPtr->locCount = litVal;
+	setTypeL(litPtr);
+	
+	if (DEBUG_PRINT) printf("LIT \"%s\" = %u.\n", litPtr->name, litPtr->locCount);
 	return DIRECTIVE;
 }
 
@@ -165,10 +169,10 @@ directiveStatus processSetLC(const char * restLine, char * errMsg, progCnt_t * p
 	return DIRECTIVE;
 }
 
-directiveStatus processDirective(const char * cmdStr, char * restLine, char * errMsg, progCnt_t * progCnt, runtimeTables_ptr tables) {
+directiveStatus processDirective(const char * cmdStr, char * restLine, char * errMsg, progCnt_t * progCnt, symbolTab_t symbolTable) {
 	switch (*(cmdStr++)) {
 		case 'L':
-			if ( strcmp(cmdStr, /*L*/"IT") == 0 ) return processLitDec(restLine, errMsg, tables->literalTab);
+			if ( strcmp(cmdStr, /*L*/"IT") == 0 ) return processLitDec(restLine, errMsg, symbolTable);
 			// Do more ifs for other 'L' directives
 			break;
 		case 'S':
@@ -191,7 +195,7 @@ directiveStatus processDirective(const char * cmdStr, char * restLine, char * er
  *	\returns	NULL on success
  *	\returns	pointer to error description on failure (for printing)
  */
-char * processLinePass1(char * lineBuffer, int lineLength, runtimeTables_ptr tables, progCnt_t * progCnt) {
+char * processLinePass1(char * lineBuffer, int lineLength, symbolTab_t symbolTable, progCnt_t * progCnt) {
 	static char labelStr[256] = "";
 	static char cmdStr[9] = "";
 	static char errMsg[256] = "";
@@ -199,8 +203,6 @@ char * processLinePass1(char * lineBuffer, int lineLength, runtimeTables_ptr tab
 	static cmdEntry_ptr	thisCmd = NULL;
 	static int i = 0;
 	static int argCnt = 0;
-	symbolTab_t  symbolTable  = tables->symbolTab;
-	literalTab_t literalTable = tables->literalTab;
 	static directiveStatus checkDir = NOTDIRECTIVE;
 	
 	while ( isspace(*lineBuffer) ) lineBuffer++; // Skip leading space, if any
@@ -254,7 +256,7 @@ char * processLinePass1(char * lineBuffer, int lineLength, runtimeTables_ptr tab
 		return errMsg;
 	}
 	
-	checkDir = processDirective(cmdStr, lineBuffer, errMsg, progCnt, tables);
+	checkDir = processDirective(cmdStr, lineBuffer, errMsg, progCnt, symbolTable);
 	if ( checkDir == DIRECTIVE ) return NULL;
 	if ( checkDir == ERROR ) return errMsg;
 	
@@ -340,6 +342,7 @@ int defineLabel(const char * labelName, char * errMsg, symbolTab_t symbolTable, 
 			case 'U':
 				break;
 			case 'D':
+			case 'L':
 				setTypeM(thisLabel);
 			case 'M':
 				strcpy(errMsg, ERR_LBL_MULT_DEF);
@@ -368,8 +371,6 @@ int defineLabel(const char * labelName, char * errMsg, symbolTab_t symbolTable, 
 
 int main(int argc, const char* argv[]) {
 	symbolTab_t  symbolTable  = NULL;
-	literalTab_t literalTable = NULL;
-	runtimeTables_t  runTable; 
 	char * 		 lineBuffer = NULL;
 	int			 bufferLength = START_LINE_BUFF_SIZE;
 	progCnt_t	progCnt = {0, 0};
@@ -390,16 +391,7 @@ int main(int argc, const char* argv[]) {
 		printf("Problem allocating symbol table\n");
 		return -1;
 	}
-	
-	literalTable = newLiteralTable();
-	if (literalTable == NULL) {
-		printf("Problem allocating literal table\n");
-		return -1;
-	}
-	
-	runTable.symbolTab  = symbolTable;
-	runTable.literalTab = literalTable;
-	
+		
 	while( *strPtr != '\0' ) {
 		char * endOfLine = strPtr;
 		lineCount++;
@@ -434,7 +426,7 @@ int main(int argc, const char* argv[]) {
 			strPtr = strchr(strPtr, '\0');
 		}
 		//printf("%4u:\t%s\n",lineCount,lineBuffer);
-		errPtr = processLinePass1(lineBuffer, strlen(lineBuffer), &runTable, &progCnt);
+		errPtr = processLinePass1(lineBuffer, strlen(lineBuffer), symbolTable, &progCnt);
 		if (errPtr != NULL) printf("On line %u:\n\t%s\r\n\n", lineCount, errPtr);
 		//break;		
 	}
@@ -444,9 +436,6 @@ int main(int argc, const char* argv[]) {
 	
 	freeSymbolTable(symbolTable);
 	symbolTable = NULL;
-	
-	freeLiteralTable(literalTable);
-	literalTable = NULL;
 	
 	free(lineBuffer);
 	lineBuffer = NULL;
