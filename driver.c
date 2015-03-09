@@ -93,7 +93,7 @@ char * resolveArg(char * argStr, char * errMsg, uint64_t * argVal, symbolTab_t s
 	uint64_t tempVal = 0x0ULL;
 	char * endConv = NULL;
 	symbol_ptr symbolicArg = NULL;
-	int useBRAM = FALSE;
+	int useDDR = FALSE;
 	
 	if( isdigit(*argStr) ) { //Starts with a #, should be a constant
 		tempVal = strtoull(argStr, &endConv, 0);
@@ -109,12 +109,17 @@ char * resolveArg(char * argStr, char * errMsg, uint64_t * argVal, symbolTab_t s
 	
 	// check for leading @, means we should replace w/ BRAM offset
 	if ( *argStr == '@' ) {
-		useBRAM = TRUE;
+		useDDR = TRUE;
 		argStr++;
 	}
+	
 	symbolicArg = findSymbol(argStr, symbolTable);
 	if (symbolicArg != NULL) {
-		*argVal = useBRAM ? symbolicArg->bramOffset : symbolicArg->locCount;
+		if ( useDDR && (symbolicArg->type == 'L') ) {
+			errMsg = strcpy(errMsg, ERR_LIT_DDR_LOOKUP);
+			return errMsg;
+		}
+		*argVal = useDDR ? symbolicArg->bramOffset : symbolicArg->locCount;
 		return NULL;
 	}
 	
