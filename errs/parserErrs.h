@@ -19,3 +19,8 @@
 #define ERR_LIT_LETTER			"LIT names must start with a letter"
 #define ERR_LIT_MULT_DEF		"Multiply-defined literal found"
 #define ERR_LIT_ALLOC_FAIL		"Internal Error: failed to allocate label"
+
+#define ERR_BAD_CMD_TABLE		"Encountered an imporperly formatted command table entry"
+
+#define ERR_BAD_ARG_FMT			"Found an improperly formatted numeric argument"
+#define ERR_BAD_ARG_UNDEF		"Found an undefined argument"

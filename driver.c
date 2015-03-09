@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <stdint.h>
+#include <inttypes.h>
 
 #include "symbolHashTable/symbolHashTable.h"
 #include "commandTable/cmdTableFormat.h"
@@ -87,6 +89,39 @@ cmdEntry_ptr processCmd(const char * cmdStr, char * errMsg, unsigned long * locC
 	return theCmd;
 }
 
+char * resolveArg(char * argStr, char * errMsg, uint64_t * argVal, symbolTab_t symbolTable) {
+	uint64_t tempVal = 0x0ULL;
+	char * endConv = NULL;
+	symbol_ptr symbolicArg = NULL;
+	int useBRAM = FALSE;
+	
+	if( isdigit(*argStr) ) { //Starts with a #, should be a constant
+		tempVal = strtoull(argStr, &endConv, 0);
+		if ( endConv != strchr(argStr, '\0') ) {
+			// Not everything went to be a number
+			strcpy(errMsg, ERR_BAD_ARG_FMT);
+			return errMsg;
+		} else {
+			*argVal = tempVal;
+			return NULL;
+		}
+	}
+	
+	// check for leading @, means we should replace w/ BRAM offset
+	if ( *argStr == '@' ) {
+		useBRAM = TRUE;
+		argStr++;
+	}
+	symbolicArg = findSymbol(argStr, symbolTable);
+	if (symbolicArg != NULL) {
+		*argVal = useBRAM ? symbolicArg->bramOffset : symbolicArg->locCount;
+		return NULL;
+	}
+	
+	strcpy(errMsg, ERR_BAD_ARG_UNDEF);
+	return errMsg;
+}
+
 directiveStatus processLitDec(char * restLine, char * errMsg, symbolTab_t litTab) {
 	symbol_ptr	litPtr = NULL;
 	unsigned long litVal = 0;
@@ -131,7 +166,7 @@ directiveStatus processLitDec(char * restLine, char * errMsg, symbolTab_t litTab
 		return ERROR;
 	}
 	
-	litVal = strtoul(scanPos, &scanPos, 0);
+	litVal = strtoull(scanPos, &scanPos, 0);
 	while( isspace(*scanPos) ) scanPos++; //Skip whitespace
 	// If we hit anything at all besides a null char (formerly the closing semicolon
 	// this is improperly formatted SETLC directive
@@ -152,7 +187,7 @@ directiveStatus processLitDec(char * restLine, char * errMsg, symbolTab_t litTab
 directiveStatus processSetLC(const char * restLine, char * errMsg, progCnt_t * progCnt) {
 	unsigned long newLC = progCnt->locCount;
 	char * checkEnding = NULL;
-	newLC = strtoul(restLine, &checkEnding, 0);
+	newLC = strtoull(restLine, &checkEnding, 0);
 	
 	while( isspace(*checkEnding) ) checkEnding++; //Skip whitespace
 	
@@ -169,10 +204,10 @@ directiveStatus processSetLC(const char * restLine, char * errMsg, progCnt_t * p
 	return DIRECTIVE;
 }
 
-directiveStatus processDirective(const char * cmdStr, char * restLine, char * errMsg, progCnt_t * progCnt, symbolTab_t symbolTable) {
+directiveStatus processDirective(const char * cmdStr, char * restLine, char * errMsg, progCnt_t * progCnt, symbolTab_t symbolTable, int firstPass) {
 	switch (*(cmdStr++)) {
 		case 'L':
-			if ( strcmp(cmdStr, /*L*/"IT") == 0 ) return processLitDec(restLine, errMsg, symbolTable);
+			if ( strcmp(cmdStr, /*L*/"IT") == 0 ) return firstPass ? processLitDec(restLine, errMsg, symbolTable) : DIRECTIVE;
 			// Do more ifs for other 'L' directives
 			break;
 		case 'S':
@@ -256,7 +291,7 @@ char * processLinePass1(char * lineBuffer, int lineLength, symbolTab_t symbolTab
 		return errMsg;
 	}
 	
-	checkDir = processDirective(cmdStr, lineBuffer, errMsg, progCnt, symbolTable);
+	checkDir = processDirective(cmdStr, lineBuffer, errMsg, progCnt, symbolTable, TRUE);
 	if ( checkDir == DIRECTIVE ) return NULL;
 	if ( checkDir == ERROR ) return errMsg;
 	
@@ -288,6 +323,149 @@ char * processLinePass1(char * lineBuffer, int lineLength, symbolTab_t symbolTab
 		strcpy(errMsg, ERR_PARSE_ARG_CNT);
 		return errMsg;
 	}
+	
+	// If we're done, it is success, return NULL
+	return NULL;
+}
+
+/*!	\brief	Handles pass 2 tasks for a passed line of the assembly file.
+ *	\details - Writes assembly into memory, if possible.
+ *	\todo	Actually document this function
+ *	\returns	NULL on success
+ *	\returns	pointer to error description on failure (for printing)
+ */
+char * processLinePass2(char * lineBuffer, int lineLength, symbolTab_t symbolTable, progCnt_t * progCnt, uint64_t * memline) {
+	static char labelStr[256] = "";
+	static char cmdStr[9] = "";
+	static char errMsg[256] = "";
+	static char * buffPos = NULL;
+	static cmdEntry_ptr	thisCmd = NULL;
+	static int i = 0;
+	static int argCnt = 0;
+	static directiveStatus checkDir = NOTDIRECTIVE;
+	uint64_t thisLine = 0x0UL;
+	uint64_t thisMask = 0xFFFFFFFFFFFFFFFFUL;
+	uint64_t argArray[MAX_ARG_COUNT] ={0};
+	char * lineCopy = NULL;
+	
+	if (DEBUG_PRINT) {
+		lineCopy = malloc((strlen(lineBuffer)+1)*sizeof(char));
+		if (lineCopy != NULL) strcpy(lineCopy, lineBuffer);
+		//printf("%s\n:",lineCopy);
+	}
+	
+	while ( isspace(*lineBuffer) ) lineBuffer++; // Skip leading space, if any
+	if (*lineBuffer == '\0') return NULL; // Empty line!
+	
+	// Find closing semicolon, or report error
+	buffPos = strchr(lineBuffer, COMMENT_START);
+	if ( buffPos == NULL ) {
+		strcpy(errMsg, ERR_PARSE_NO_END);
+		return errMsg;
+	} else {
+		*buffPos = '\0';
+	}
+	
+	// Find label delimiter, if any, and skip label definition (we already read it)
+	buffPos = strchr(lineBuffer, LABEL_END);
+	if ( buffPos != NULL ) {
+		lineBuffer = ++buffPos;
+		while ( isspace(*lineBuffer) ) lineBuffer++; // Skip whitespace between label and cmd
+	}
+	
+	// Should be at the beginning of the command by here, so go until whitespace
+	*cmdStr = '\0';
+	buffPos = lineBuffer;
+	for (i=0; i < MAX_CMD_LEN; i++) {
+		// Process Line for command Here
+		if ( isspace(*lineBuffer) || ((*lineBuffer) == '\0') ) {
+			*lineBuffer = '\0';
+			strcpy(cmdStr, buffPos);
+			lineBuffer++;// Increment past the null we just inserted
+			break;
+		}
+		lineBuffer++;
+	}
+
+	if ( cmdStr[0] == '\0' ) {
+		strcpy(errMsg, ERR_PARSE_CMD_LONG);
+		return errMsg;
+	}
+	
+	checkDir = processDirective(cmdStr, lineBuffer, errMsg, progCnt, symbolTable, FALSE);
+	if ( checkDir == DIRECTIVE ) return NULL;
+	if ( checkDir == ERROR ) return errMsg;
+	
+	// This far means we're expecting an actual command
+	thisCmd = processCmd(cmdStr, errMsg, &(progCnt->locCount), &(progCnt->bramOffset));
+	if ( thisCmd == NULL ) return errMsg; // Problem looking up command. Report the error
+	
+	// Start building the command word:
+	if ( (thisCmd->flags & WR_OPCODE_MASK) != 0 ) {
+		thisLine |= ( thisMask & ( ((uint64_t)thisCmd->opcode) << INST_OPCD_OFFSET ));
+		thisMask &= ~INST_OPCD_MASK;
+	}
+	
+	// If we're here, the command entry is stashed in thisCmd, so we can keep processing
+	progCnt->locCount	+= thisCmd->numLines;
+	progCnt->bramOffset	+= (thisCmd->numLines * CMD_BYTES);
+	
+	// Resolve individual arguments.  We've already vetted them for format
+	argCnt = thisCmd->numArgs;
+	for(i=0; i<argCnt; i++){
+		char * startArg;
+		while ( isspace(*lineBuffer) ) lineBuffer++; // Skip any whitespace before the argument
+		startArg = lineBuffer;
+		buffPos = strchr(lineBuffer, ARG_DELIMIT);
+		if (buffPos != NULL) {
+			*buffPos = '\0';
+			lineBuffer = buffPos + 1;
+		} else {
+			buffPos = strchr(lineBuffer, '\0');
+		};
+		buffPos--;
+		while ( isspace(*buffPos) ) buffPos--; // Rewind over trailing whitespace
+		*(++buffPos) = '\0';
+		strcpy(labelStr, startArg);
+		if( resolveArg( labelStr, errMsg, (argArray + i), symbolTable) != NULL) return errMsg;
+	}
+		
+	// Now put the arguments where they should go.
+	// Order is Data, then Time.
+	// This method is clear, but not extensible
+	switch (argCnt) {
+		case 0:
+			// Can put in other default data, but right now it is 0's
+			break;
+		case 1: // Do we need to check for cases that won't happen if the cmd table is formatted properly?
+			if ( (thisCmd->flags & WR_DATFLD_MASK) != 0 ) {
+				thisLine |= ( thisMask & ( argArray[0] << INST_DATA_OFFSET ) );
+			} else if ( (thisCmd->flags & WR_TIMFLD_MASK) != 0 ) {
+				thisLine |= ( thisMask & ( argArray[0] << INST_TIME_OFFSET ) );					
+			}
+			break;
+		case 2:
+			thisLine |= ( thisMask & ( argArray[0] << INST_DATA_OFFSET ) );
+			thisLine |= ( (thisMask & INST_TIME_MASK) & ( argArray[1] << INST_TIME_OFFSET ) );
+			break;
+		default:
+			strcpy(errMsg, ERR_BAD_CMD_TABLE);
+			return errMsg;
+			break;
+	}
+	
+	// We've got a command, now write the opcode to memory
+	*memline = thisLine;
+	if (DEBUG_PRINT) {
+		if (lineCopy != NULL) {
+			printf("@0x%08x:\t0x%016" PRIx64 ";\t%s\n", memline, *memline, lineCopy);
+			free(lineCopy);
+			lineCopy = NULL;
+		} else {
+			printf("@0x%08x:\t0x%016" PRIx64 ";\t<Insufficient memory for line echo>\n", memline, *memline);
+		}
+	}
+	memline++; // This will need to be different, and memline will need to be uint64_t **
 	
 	// If we're done, it is success, return NULL
 	return NULL;
@@ -380,6 +558,7 @@ int main(int argc, const char* argv[]) {
 	int i = 0;
 	unsigned int lineCount = 0;
 	char * strPtr = gTestString;
+	uint64_t dummyLine = 0;
 	
 	if (DEBUG_PRINT) printf("++++====++++\nIn main()\n");
 	
@@ -433,7 +612,30 @@ int main(int argc, const char* argv[]) {
 	if (DEBUG_PRINT) printf("\nOrig. Buffer:\n%s\n",gTestString);
 
 	if (DEBUG_PRINT) printHashTable(symbolTable);
-	
+
+	strPtr = gTestString;
+	lineCount = 0;
+	while( *strPtr != '\0' ) {
+		char * endOfLine = strPtr;
+		lineCount++;
+		// Building a line buffer formation unit here
+		endOfLine = strchr(strPtr,'\n');
+		if (endOfLine != NULL) {
+			size_t len = (endOfLine-strPtr);
+			strncpy(lineBuffer, strPtr, len);
+			* (lineBuffer + (len)) = '\0';
+			strPtr = ++endOfLine;
+		} else {
+			size_t len = strlen(strPtr);
+			strcpy(lineBuffer, strPtr);
+			strPtr = strchr(strPtr, '\0');
+		}
+		//printf("%4u:\t%s\n",lineCount,lineBuffer);
+		errPtr = processLinePass2(lineBuffer, strlen(lineBuffer), symbolTable, &progCnt, &dummyLine);
+		if (errPtr != NULL) printf("On line %u:\n\t%s\r\n\n", lineCount, errPtr);
+		//break;		
+	}
+
 	freeSymbolTable(symbolTable);
 	symbolTable = NULL;
 	
