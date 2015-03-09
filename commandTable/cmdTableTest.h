@@ -91,24 +91,24 @@ getCmdTest (str, len)
 {
   static const struct cmdEntry wordListTest[] =
     {
-      {"",CMD_NOP,0,1,WR_OPCODE_MASK},
-      {"",CMD_NOP,0,1,WR_OPCODE_MASK},
-      {"",CMD_NOP,0,1,WR_OPCODE_MASK},
-      {"",CMD_NOP,0,1,WR_OPCODE_MASK},
+      {"",CMD_NOP_CODE,0,1,WR_OPCODE_MASK},
+      {"",CMD_NOP_CODE,0,1,WR_OPCODE_MASK},
+      {"",CMD_NOP_CODE,0,1,WR_OPCODE_MASK},
+      {"",CMD_NOP_CODE,0,1,WR_OPCODE_MASK},
 #line 13 "testDict.gperf"
-      {"LOAD", 		0x02,	2,	1,	WR_OPCODE_MASK},
-      {"",CMD_NOP,0,1,WR_OPCODE_MASK},
-      {"",CMD_NOP,0,1,WR_OPCODE_MASK},
+      {"LOAD", 		0x02,	2,	1,	WR_ALL_MASK},
+      {"",CMD_NOP_CODE,0,1,WR_OPCODE_MASK},
+      {"",CMD_NOP_CODE,0,1,WR_OPCODE_MASK},
 #line 15 "testDict.gperf"
       {"TOOMANY",	0x04,	0,	1,	WR_OPCODE_MASK},
 #line 11 "testDict.gperf"
-      {"JMP",		0x00,	2,	1,	WR_OPCODE_MASK},
+      {"JMP",		0x00,	2,	1,	WR_ALL_MASK},
 #line 14 "testDict.gperf"
       {"NEXTBLK",	0x03,	0,	1,	WR_OPCODE_MASK},
-      {"",CMD_NOP,0,1,WR_OPCODE_MASK},
-      {"",CMD_NOP,0,1,WR_OPCODE_MASK},
+      {"",CMD_NOP_CODE,0,1,WR_OPCODE_MASK},
+      {"",CMD_NOP_CODE,0,1,WR_OPCODE_MASK},
 #line 12 "testDict.gperf"
-      {"JMPDATA",	0x01,	2,	1,	WR_OPCODE_MASK}
+      {"JMPDATA",	0x01,	2,	1,	WR_ALL_MASK }
     };
 
   if (len <= MAX_WORD_LENGTH && len >= MIN_WORD_LENGTH)

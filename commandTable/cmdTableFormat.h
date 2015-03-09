@@ -29,24 +29,22 @@ extern "C" {
  *
  */
 //! @{
-#define DATA_INST_MASK	0x01	//!< Write Data Instruction mask
-#define WR_OPCODE_MASK	0x02	//!< Write OpCode mask
-#define WR_DATFLD_MASK	0x04	//!< Write Data Field mask
-#define WR_TIMFLD_MASK	0x08	//!< Write Time-code Field mask
-#define DATA_ALGN_MASK	0x30	//!< Data Alignment field mask
-#define RSVD_FLD_MASK	0x40	//!< Reserved Bits mask
-#define ASSM_DIR_MASK	0x80	//!< Command is actually an assembler directive
-
+#define WR_OPCODE_MASK	0x01	//!< Write OpCode mask
+#define WR_DATFLD_MASK	0x02	//!< Write Data Field mask
+#define WR_TIMFLD_MASK	0x04	//!< Write Time-code Field mask
+#define RSVD_FLD_MASK	0xF8	//!< Reserved Bits mask
+#define WR_ALL_MASK (WR_OPCODE_MASK | WR_DATFLD_MASK | WR_TIMFLD_MASK)
 //! @}
 
-//! \name	Data Alignment Constants for cmdEntry->flags Data Alignment Field
-//! @{
-#define DATA_ALIGN_64	0x00	//!< 1x 64-bit word per line
-#define DATA_ALIGN_32	0x10	//!< 2x 32-bit words per line
-#define DATA_ALIGN_16	0x20	//!< 4x 16-bit words per line
-#define DATA_ALIGN_8	0x30	//!< 8x  8-bit words per line
+#define INST_OPCD_OFFSET	56
+#define INST_DATA_OFFSET	32
+#define INST_TIME_OFFSET	0
 
-//! @}
+#define INST_OPCD_MASK		0xFF00000000000000ULL
+#define INST_DATA_MASK		0x00FFFFFF00000000ULL
+#define INST_TIME_MASK		0x00000000FFFFFFFFULL
+
+#define MAX_ARG_COUNT		2
 
 /*!	\brief	Structure storing information used in Instruction to OpCode conversion
  *	\details See \ref cmdTableFormat.h for macros defining structure of the ::cmdEntry::flags field
