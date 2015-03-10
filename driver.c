@@ -89,6 +89,43 @@ cmdEntry_ptr processCmd(const char * cmdStr, char * errMsg, unsigned long * locC
 	return theCmd;
 }
 
+char * checkArg(char * argStr, char * errMsg, symbolTab_t symbolTable, unsigned int lineCount) {
+	char * endConv = NULL;
+	symbol_ptr symbolicArg = NULL;
+	
+	// Kill trailing whitespace
+	endConv = strchr(argStr, '\0') - 1;
+	while( isspace(*endConv) ) endConv--; // Skip trailing whitespace
+	*(++endConv) = '\0';
+	endConv = NULL;
+	
+	if( isdigit(*argStr) ) { //Starts with a #, should be a constant
+		strtoull(argStr, &endConv, 0);
+		if ( endConv != strchr(argStr, '\0') ) {
+			// Not everything went to be a number
+			strcpy(errMsg, ERR_BAD_ARG_FMT);
+			return errMsg;
+		} else {
+			return NULL;
+		}
+	}
+	
+	// check for leading @, means we should replace w/ BRAM offset
+	if ( *argStr == '@' ) argStr++;
+	
+	symbolicArg = findSymbol(argStr, symbolTable);
+	if (symbolicArg == NULL) {
+		symbolicArg = addSymbol(argStr, symbolTable);
+		if (symbolicArg == NULL) {
+			strcpy(errMsg, ERR_LBL_ALLOC_FAIL);
+			return errMsg;
+		}
+		symbolicArg->locCount = lineCount; // Mark down first sighting line #
+	}
+	
+	return NULL;
+}
+
 char * resolveArg(char * argStr, char * errMsg, uint64_t * argVal, symbolTab_t symbolTable) {
 	uint64_t tempVal = 0x0ULL;
 	char * endConv = NULL;
@@ -159,16 +196,18 @@ directiveStatus processLitDec(char * restLine, char * errMsg, symbolTab_t litTab
 	if ( validLabel(litName, errMsg) != 0) return ERROR;
 	
 	litPtr = findSymbol(litName, litTab);
-	if ((litPtr != NULL) && (litPtr->type != 'U')) {
-		setTypeM(litPtr);
-		strcpy(errMsg, ERR_LIT_MULT_DEF);
-		return ERROR;
-	}
-	
-	litPtr = addSymbol(litName, litTab);
-	if (litPtr == NULL) {
-		strcpy(errMsg, ERR_LBL_ALLOC_FAIL);
-		return ERROR;
+	if (litPtr != NULL) {
+		if (litPtr->type != 'U') {
+			setTypeM(litPtr);
+			strcpy(errMsg, ERR_LIT_MULT_DEF);
+			return ERROR;
+		}
+	} else {
+		litPtr = addSymbol(litName, litTab);
+		if (litPtr == NULL) {
+			strcpy(errMsg, ERR_LBL_ALLOC_FAIL);
+			return ERROR;
+		}
 	}
 	
 	litVal = strtoull(scanPos, &scanPos, 0);
@@ -235,7 +274,7 @@ directiveStatus processDirective(const char * cmdStr, char * restLine, char * er
  *	\returns	NULL on success
  *	\returns	pointer to error description on failure (for printing)
  */
-char * processLinePass1(char * lineBuffer, int lineLength, symbolTab_t symbolTable, progCnt_t * progCnt) {
+char * processLinePass1(char * lineBuffer, unsigned int lineNum, symbolTab_t symbolTable, progCnt_t * progCnt, unsigned int lineCount) {
 	static char labelStr[256] = "";
 	static char cmdStr[9] = "";
 	static char errMsg[256] = "";
@@ -246,17 +285,7 @@ char * processLinePass1(char * lineBuffer, int lineLength, symbolTab_t symbolTab
 	static directiveStatus checkDir = NOTDIRECTIVE;
 	
 	while ( isspace(*lineBuffer) ) lineBuffer++; // Skip leading space, if any
-	if (*lineBuffer == '\0') return NULL; // Empty line!
-	
-	// Find closing semicolon, or report error
-	buffPos = strchr(lineBuffer, COMMENT_START);
-	if ( buffPos == NULL ) {
-		strcpy(errMsg, ERR_PARSE_NO_END);
-		return errMsg;
-	} else {
-		*buffPos = '\0';
-	}
-	
+
 	// Find label delimiter, if any
 	buffPos = strchr(lineBuffer, LABEL_END);
 	if ( buffPos != NULL ) {
@@ -275,6 +304,17 @@ char * processLinePass1(char * lineBuffer, int lineLength, symbolTab_t symbolTab
 		if (defineLabel(labelStr, errMsg, symbolTable, progCnt->locCount, progCnt->bramOffset) != 0) return errMsg; //Problem defining the label
 		
 		while ( isspace(*lineBuffer) ) lineBuffer++; // Skip whitespace between label and cmd
+	}
+
+	if (*lineBuffer == '\0') return NULL; // Empty line!
+	
+	// Find closing semicolon, or report error
+	buffPos = strchr(lineBuffer, COMMENT_START);
+	if ( buffPos == NULL ) {
+		strcpy(errMsg, ERR_PARSE_NO_END);
+		return errMsg;
+	} else {
+		*buffPos = '\0';
 	}
 	
 	// Should be at the beginning of the command by here, so go until whitespace
@@ -310,21 +350,26 @@ char * processLinePass1(char * lineBuffer, int lineLength, symbolTab_t symbolTab
 	progCnt->bramOffset	+= (thisCmd->numLines * CMD_BYTES);
 	
 	// Check for correct number of arguments
-	// (don't bother resolving symbols and literals at this time, that is in pass 2)
-	// In other words, don't even look at the content of the stuff, just count.
+	// Also check format of arguments
 	while ( isspace(*lineBuffer) ) lineBuffer++; // Skip any whitespace before the first argument
 
 	argCnt = 0;
-	if (*lineBuffer != '\0') {
-		argCnt = 1;
+	while (*lineBuffer != '\0') {
+		argCnt++;
 		buffPos = strchr(lineBuffer, ARG_DELIMIT);
-		while ( buffPos != NULL ) {
-			argCnt++;
-			buffPos = strchr(++buffPos, ARG_DELIMIT);
+		if (buffPos != NULL) {
+			*buffPos = '\0';
+			if (checkArg(lineBuffer, errMsg, symbolTable, lineCount) != NULL) return errMsg;
+			lineBuffer = ++buffPos;
+			while ( isspace(*lineBuffer) ) lineBuffer++; // Skip any whitespace before the next argument
+		} else {
+			if (checkArg(lineBuffer, errMsg, symbolTable, lineCount) != NULL) return errMsg;
+			lineBuffer = strchr(lineBuffer, '\0');
 		}
 	}
 	
 	if ( argCnt != thisCmd->numArgs) {
+		printf("%d found, %d expected.\n", argCnt, thisCmd->numArgs);
 		strcpy(errMsg, ERR_PARSE_ARG_CNT);
 		return errMsg;
 	}
@@ -360,6 +405,14 @@ char * processLinePass2(char * lineBuffer, int lineLength, symbolTab_t symbolTab
 	}
 	
 	while ( isspace(*lineBuffer) ) lineBuffer++; // Skip leading space, if any
+	
+	// Find label delimiter, if any, and skip label definition (we already read it)
+	buffPos = strchr(lineBuffer, LABEL_END);
+	if ( buffPos != NULL ) {
+		lineBuffer = ++buffPos;
+		while ( isspace(*lineBuffer) ) lineBuffer++; // Skip whitespace between label and cmd
+	}
+
 	if (*lineBuffer == '\0') return NULL; // Empty line!
 	
 	// Find closing semicolon, or report error
@@ -370,14 +423,7 @@ char * processLinePass2(char * lineBuffer, int lineLength, symbolTab_t symbolTab
 	} else {
 		*buffPos = '\0';
 	}
-	
-	// Find label delimiter, if any, and skip label definition (we already read it)
-	buffPos = strchr(lineBuffer, LABEL_END);
-	if ( buffPos != NULL ) {
-		lineBuffer = ++buffPos;
-		while ( isspace(*lineBuffer) ) lineBuffer++; // Skip whitespace between label and cmd
-	}
-	
+		
 	// Should be at the beginning of the command by here, so go until whitespace
 	*cmdStr = '\0';
 	buffPos = lineBuffer;
@@ -552,6 +598,29 @@ int defineLabel(const char * labelName, char * errMsg, symbolTab_t symbolTable, 
 	return 0;
 }
 
+char * undefinedSymbolCheck(symbolTab_t symbolTable) {
+	static int i;
+	static symbol_ptr thisSymbol = NULL;
+	static char undefStr[MAX_LIT_NAME_LEN + 64 +1] = "";
+	
+	// Pickup from where we left off
+	while ( i < SYMBOL_TABLE_SIZE ) {
+		while ( thisSymbol != NULL ) {
+			if( thisSymbol->type == 'U' ) {
+				sprintf(undefStr, ERR_UNDEF_SYMB_FMT, thisSymbol->name, thisSymbol->locCount);
+				thisSymbol = thisSymbol->next;
+				return undefStr;
+			}
+			thisSymbol = thisSymbol->next;
+		}
+		i++;
+		thisSymbol = symbolTable[i];
+	}
+	i = -1; // Start from the beginning on next invocation.
+	thisSymbol = NULL;
+	return NULL;
+}
+
 int main(int argc, const char* argv[]) {
 	symbolTab_t  symbolTable  = NULL;
 	char * 		 lineBuffer = NULL;
@@ -610,14 +679,21 @@ int main(int argc, const char* argv[]) {
 			strPtr = strchr(strPtr, '\0');
 		}
 		//printf("%4u:\t%s\n",lineCount,lineBuffer);
-		errPtr = processLinePass1(lineBuffer, strlen(lineBuffer), symbolTable, &progCnt);
+		errPtr = processLinePass1(lineBuffer, strlen(lineBuffer), symbolTable, &progCnt, lineCount);
 		if (errPtr != NULL) printf("On line %u:\n\t%s\r\n\n", lineCount, errPtr);
 		//break;		
 	}
 	if (DEBUG_PRINT) printf("\nOrig. Buffer:\n%s\n",gTestString);
 
 	if (DEBUG_PRINT) printHashTable(symbolTable);
-
+	// Check for undefined symbols here
+	errPtr = undefinedSymbolCheck(symbolTable);
+	if (errPtr != NULL) {
+		printf("Undefined symbols found:\n%s", errPtr);
+		while( (errPtr = undefinedSymbolCheck(symbolTable)) != NULL ) printf("%s", errPtr);
+		return -1;
+	}
+	
 	strPtr = gTestString;
 	lineCount = 0;
 	while( *strPtr != '\0' ) {

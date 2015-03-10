@@ -25,3 +25,5 @@
 #define ERR_BAD_ARG_FMT			"Found an improperly formatted numeric argument"
 #define ERR_BAD_ARG_UNDEF		"Found an undefined argument"
 #define ERR_LIT_DDR_LOOKUP		"Tried to access DDR offset of a literal"
+
+#define ERR_UNDEF_SYMB_FMT		"\tUndefined symbol \"%s\" (first seen on line %u)\n"
