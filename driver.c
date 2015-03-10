@@ -243,17 +243,16 @@ directiveStatus processDirective(const char * cmdStr, char * restLine, char * er
 	return NOTDIRECTIVE; // We've not returns from any special code, so NOTDIRECTIVE.
 }
 
-/*!	\brief	Handles pass 1 tasks for a passed line of the assembly file.
+/*!	\brief	Handles processing of a single line of a file.
  *	\details - Searches for label definitions to build the symbol table, and checks that none a multiply defined.
  *			 - Also checks for literal definitions and creates those
  *			 - Handles other assembler directives
  *			 - Looks up commands strings and keeps track of total memory size so it can be allocated for the second pass.
  *			 - Checks total argument count to match with the command
- *	\todo	Define processCmd(const char * cmdStr, char * errMsg, unsigned long * locCount, unsigned long * ddrOff);
  *	\returns	NULL on success
  *	\returns	pointer to error description on failure (for printing)
  */
-char * processLinePass1(char * lineBuffer, symbolTab_t symbolTable, progCnt_t * progCnt, uint64_t * memline, passNum_type whichPass) {
+char * processLine(char * lineBuffer, symbolTab_t symbolTable, progCnt_t * progCnt, uint64_t * memline) {
 	static char labelStr[256] = "";
 	static char cmdStr[9] = "";
 	static char errMsg[256] = "";
@@ -262,119 +261,6 @@ char * processLinePass1(char * lineBuffer, symbolTab_t symbolTable, progCnt_t * 
 	static int i = 0;
 	static int argCnt = 0;
 	static directiveStatus checkDir = NOTDIRECTIVE;
-	
-	while ( isspace(*lineBuffer) ) lineBuffer++; // Skip leading space, if any
-
-	// Find label delimiter, if any
-	buffPos = strchr(lineBuffer, LABEL_END);
-	if ( buffPos != NULL ) {
-		symbol_ptr	thisLabel	= NULL;
-		
-		// First non-whitespace is label separator
-		if ( buffPos == lineBuffer ) {
-			strcpy(errMsg, ERR_PARSE_LBL_EMPTY);
-			return errMsg;
-		}
-		
-		*buffPos = '\0'; // Switch the label sep. to NULL char
-		strcpy(labelStr, lineBuffer);
-		lineBuffer = ++buffPos;
-		
-		if (defineLabel(labelStr, errMsg, symbolTable, progCnt->locCount, progCnt->ddrOffset) != 0) return errMsg; //Problem defining the label
-		
-		while ( isspace(*lineBuffer) ) lineBuffer++; // Skip whitespace between label and cmd
-	}
-
-	if (*lineBuffer == '\0') return NULL; // Empty line!
-	
-	// Find closing semicolon, or report error
-	buffPos = strchr(lineBuffer, COMMENT_START);
-	if ( buffPos == NULL ) {
-		strcpy(errMsg, ERR_PARSE_NO_END);
-		return errMsg;
-	} else {
-		*buffPos = '\0';
-	}
-	
-	// Should be at the beginning of the command by here, so go until whitespace
-	*cmdStr = '\0';
-	buffPos = lineBuffer;
-	for (i=0; i < MAX_CMD_LEN; i++) {
-		// Process Line for command Here
-		if ( isspace(*lineBuffer) || ((*lineBuffer) == '\0') ) {
-			*lineBuffer = '\0';
-			strcpy(cmdStr, buffPos);
-			lineBuffer++;// Increment past the null we just inserted
-			break;
-		}
-		lineBuffer++;
-	}
-
-	if ( cmdStr[0] == '\0' ) {
-		strcpy(errMsg, ERR_PARSE_CMD_LONG);
-		return errMsg;
-	}
-	
-	checkDir = processDirective(cmdStr, lineBuffer, errMsg, progCnt, symbolTable, TRUE);
-	if ( checkDir == DIRECTIVE ) return NULL;
-	if ( checkDir == ERROR ) return errMsg;
-	
-	// This far means we're expecting an actual command
-	thisCmd = processCmd(cmdStr, errMsg, &(progCnt->locCount), &(progCnt->ddrOffset));
-	if ( thisCmd == NULL ) return errMsg; // Problem looking up command. Report the error
-	
-
-	// If we're here, the command entry is stashed in thisCmd, so we can keep processing
-	progCnt->locCount	+= thisCmd->numLines;
-	progCnt->ddrOffset	+= (thisCmd->numLines * CMD_BYTES);
-	
-	// Check for correct number of arguments
-	// Also check format of arguments
-	while ( isspace(*lineBuffer) ) lineBuffer++; // Skip any whitespace before the first argument
-
-	argCnt = 0;
-	while (*lineBuffer != '\0') {
-		uint64_t dummyVal;
-		argCnt++;
-		buffPos = strchr(lineBuffer, ARG_DELIMIT);
-		if (buffPos != NULL) {
-			*buffPos = '\0';
-			if ( resolveArg(lineBuffer, errMsg, &dummyVal, symbolTable, progCnt) != NULL) return errMsg;
-			lineBuffer = ++buffPos;
-			while ( isspace(*lineBuffer) ) lineBuffer++; // Skip any whitespace before the next argument
-		} else {
-			if ( resolveArg(lineBuffer, errMsg, &dummyVal, symbolTable, progCnt) != NULL) return errMsg;
-			lineBuffer = strchr(lineBuffer, '\0');
-		}
-	}
-	
-	if ( argCnt != thisCmd->numArgs) {
-		printf("%d found, %d expected.\n", argCnt, thisCmd->numArgs);
-		strcpy(errMsg, ERR_PARSE_ARG_CNT);
-		return errMsg;
-	}
-	
-	// If we're done, it is success, return NULL
-	return NULL;
-}
-
-/*!	\brief	Handles pass 2 tasks for a passed line of the assembly file.
- *	\details - Writes assembly into memory, if possible.
- *	\todo	Actually document this function
- *	\returns	NULL on success
- *	\returns	pointer to error description on failure (for printing)
- */
-char * processLinePass2(char * lineBuffer, symbolTab_t symbolTable, progCnt_t * progCnt, uint64_t * memline, passNum_type whichPass) {
-	static char labelStr[256] = "";
-	static char cmdStr[9] = "";
-	static char errMsg[256] = "";
-	static char * buffPos = NULL;
-	static cmdEntry_ptr	thisCmd = NULL;
-	static int i = 0;
-	static int argCnt = 0;
-	static directiveStatus checkDir = NOTDIRECTIVE;
-	uint64_t thisLine = 0x0UL;
-	uint64_t thisMask = 0xFFFFFFFFFFFFFFFFUL;
 	uint64_t argArray[MAX_ARG_COUNT] ={0};
 	char * lineCopy = NULL;
 	
@@ -385,15 +271,31 @@ char * processLinePass2(char * lineBuffer, symbolTab_t symbolTable, progCnt_t * 
 	}
 	
 	while ( isspace(*lineBuffer) ) lineBuffer++; // Skip leading space, if any
-	
-	// Find label delimiter, if any, and skip label definition (we already read it)
+
+	// Find label delimiter, if any
 	buffPos = strchr(lineBuffer, LABEL_END);
 	if ( buffPos != NULL ) {
+		symbol_ptr	thisLabel	= NULL;
+		
+		// On first pass, we'd define the label.
+		if (progCnt->whichPass == FIRST) {
+			// First non-whitespace is label separator
+			if ( buffPos == lineBuffer ) {
+				strcpy(errMsg, ERR_PARSE_LBL_EMPTY);
+				return errMsg;
+			}
+			
+			*buffPos = '\0'; // Switch the label sep. to NULL char
+			strcpy(labelStr, lineBuffer);
+			if (defineLabel(labelStr, errMsg, symbolTable, progCnt->locCount, progCnt->ddrOffset) != 0) return errMsg; //Problem defining the label
+		}
+		// Start after the label separator and skip whitespace
 		lineBuffer = ++buffPos;
-		while ( isspace(*lineBuffer) ) lineBuffer++; // Skip whitespace between label and cmd
+		while ( isspace(*lineBuffer) ) lineBuffer++;
 	}
-
-	if (*lineBuffer == '\0') return NULL; // Empty line!
+	
+	// If we're to the null character, this line is empty
+	if (*lineBuffer == '\0') return NULL;
 	
 	// Find closing semicolon, or report error
 	buffPos = strchr(lineBuffer, COMMENT_START);
@@ -403,7 +305,7 @@ char * processLinePass2(char * lineBuffer, symbolTab_t symbolTable, progCnt_t * 
 	} else {
 		*buffPos = '\0';
 	}
-		
+	
 	// Should be at the beginning of the command by here, so go until whitespace
 	*cmdStr = '\0';
 	buffPos = lineBuffer;
@@ -417,86 +319,110 @@ char * processLinePass2(char * lineBuffer, symbolTab_t symbolTable, progCnt_t * 
 		}
 		lineBuffer++;
 	}
-
+	
+	// If we didn't hit whitespace before the max length,
+	// it never got copied, so cmdStr[0] is '\0'
+	// If we find that, the command was thus too long.
 	if ( cmdStr[0] == '\0' ) {
 		strcpy(errMsg, ERR_PARSE_CMD_LONG);
 		return errMsg;
 	}
 	
-	checkDir = processDirective(cmdStr, lineBuffer, errMsg, progCnt, symbolTable, FALSE);
+	// Check if it is a assembler directive, and take appropriate action.
+	checkDir = processDirective(cmdStr, lineBuffer, errMsg, progCnt, symbolTable, progCnt->whichPass == FIRST);
 	if ( checkDir == DIRECTIVE ) return NULL;
 	if ( checkDir == ERROR ) return errMsg;
 	
 	// This far means we're expecting an actual command
 	thisCmd = processCmd(cmdStr, errMsg, &(progCnt->locCount), &(progCnt->ddrOffset));
 	if ( thisCmd == NULL ) return errMsg; // Problem looking up command. Report the error
-	
-	// Start building the command word:
-	if ( (thisCmd->flags & WR_OPCODE_MASK) != 0 ) {
-		thisLine |= ( thisMask & ( ((uint64_t)thisCmd->opcode) << INST_OPCD_OFFSET ));
-		thisMask &= ~INST_OPCD_MASK;
-	}
-	
+
 	// If we're here, the command entry is stashed in thisCmd, so we can keep processing
 	progCnt->locCount	+= thisCmd->numLines;
 	progCnt->ddrOffset	+= (thisCmd->numLines * CMD_BYTES);
 	
-	// Resolve individual arguments.  We've already vetted them for format
-	argCnt = thisCmd->numArgs;
-	for(i=0; i<argCnt; i++){
-		char * startArg;
-		while ( isspace(*lineBuffer) ) lineBuffer++; // Skip any whitespace before the argument
-		startArg = lineBuffer;
+	// Check for correct number of arguments
+	// Also check format of arguments
+	while ( isspace(*lineBuffer) ) lineBuffer++; // Skip any whitespace before the first argument
+	
+	argCnt = 0;
+	while (*lineBuffer != '\0') {
+		argCnt++;
 		buffPos = strchr(lineBuffer, ARG_DELIMIT);
+		if ( argCnt > MAX_ARG_COUNT ) { // Don't bother checking extra args
+			if (buffPos != NULL) {
+				lineBuffer = ++buffPos;
+			} else {
+				lineBuffer = strchr(lineBuffer, '\0');
+			}
+			continue;
+		}
 		if (buffPos != NULL) {
 			*buffPos = '\0';
-			lineBuffer = buffPos + 1;
+			if (resolveArg(lineBuffer, errMsg, (argArray + (argCnt - 1)), symbolTable, progCnt) != NULL) return errMsg;
+			lineBuffer = ++buffPos;
+			while ( isspace(*lineBuffer) ) lineBuffer++; // Skip any whitespace before the next argument
 		} else {
-			buffPos = strchr(lineBuffer, '\0');
-		};
-		buffPos--;
-		while ( isspace(*buffPos) ) buffPos--; // Rewind over trailing whitespace
-		*(++buffPos) = '\0';
-		strcpy(labelStr, startArg);
-		if( resolveArg( labelStr, errMsg, (argArray + i), symbolTable, progCnt) != NULL) return errMsg;
-	}
-		
-	// Now put the arguments where they should go.
-	// Order is Data, then Time.
-	// This method is clear, but not extensible
-	switch (argCnt) {
-		case 0:
-			// Can put in other default data, but right now it is 0's
-			break;
-		case 1: // Do we need to check for cases that won't happen if the cmd table is formatted properly?
-			if ( (thisCmd->flags & WR_DATFLD_MASK) != 0 ) {
-				thisLine |= ( thisMask & ( argArray[0] << INST_DATA_OFFSET ) );
-			} else if ( (thisCmd->flags & WR_TIMFLD_MASK) != 0 ) {
-				thisLine |= ( thisMask & ( argArray[0] << INST_TIME_OFFSET ) );					
-			}
-			break;
-		case 2:
-			thisLine |= ( thisMask & ( argArray[0] << INST_DATA_OFFSET ) );
-			thisLine |= ( (thisMask & INST_TIME_MASK) & ( argArray[1] << INST_TIME_OFFSET ) );
-			break;
-		default:
-			strcpy(errMsg, ERR_BAD_CMD_TABLE);
-			return errMsg;
-			break;
-	}
-	
-	// We've got a command, now write the opcode to memory
-	*memline = thisLine;
-	if (DEBUG_PRINT) {
-		if (lineCopy != NULL) {
-			printf("@0x%08x:\t0x%016" PRIx64 ";\t%s\n", memline, *memline, lineCopy);
-			free(lineCopy);
-			lineCopy = NULL;
-		} else {
-			printf("@0x%08x:\t0x%016" PRIx64 ";\t<Insufficient memory for line echo>\n", memline, *memline);
+			if (resolveArg(lineBuffer, errMsg, (argArray + (argCnt - 1)), symbolTable, progCnt) != NULL) return errMsg;
+			lineBuffer = strchr(lineBuffer, '\0');
 		}
 	}
-	memline++; // This will need to be different, and memline will need to be uint64_t **
+	
+	// Check we found the right number of arguments
+	if ( argCnt != thisCmd->numArgs) {
+		printf("%d found, %d expected.\n", argCnt, thisCmd->numArgs);
+		strcpy(errMsg, ERR_PARSE_ARG_CNT);
+		return errMsg;
+	}
+	
+	// All the output stuff only happens on the second pass
+	if ( progCnt->whichPass == SECOND) {
+		uint64_t thisLine = 0x0ULL;
+		uint64_t thisMask = 0xFFFFFFFFFFFFFFFFULL;
+		
+		// Start building the command word:
+		if ( (thisCmd->flags & WR_OPCODE_MASK) != 0 ) {
+			thisLine |= ( thisMask & ( ((uint64_t)thisCmd->opcode) << INST_OPCD_OFFSET ));
+			thisMask &= ~INST_OPCD_MASK;
+		}
+		
+		// Now put the arguments where they should go.
+		// Order is Data, then Time.
+		// This method is clear, but not extensible
+		switch (argCnt) {
+			case 0:
+				// Can put in other default data, but right now it is 0's
+				break;
+			case 1: // Do we need to check for cases that won't happen if the cmd table is formatted properly?
+				if ( (thisCmd->flags & WR_DATFLD_MASK) != 0 ) {
+					thisLine |= ( thisMask & ( argArray[0] << INST_DATA_OFFSET ) );
+				} else if ( (thisCmd->flags & WR_TIMFLD_MASK) != 0 ) {
+					thisLine |= ( thisMask & ( argArray[0] << INST_TIME_OFFSET ) );					
+				}
+				break;
+			case 2:
+				thisLine |= ( thisMask & ( argArray[0] << INST_DATA_OFFSET ) );
+				thisLine |= ( (thisMask & INST_TIME_MASK) & ( argArray[1] << INST_TIME_OFFSET ) );
+				break;
+			default:
+				strcpy(errMsg, ERR_BAD_CMD_TABLE);
+				return errMsg;
+				break;
+		}
+		
+		// We've got a command, now write the opcode to memory
+		*memline = thisLine;
+		if (DEBUG_PRINT) {
+			if (lineCopy != NULL) {
+				printf("@0x%08x:\t0x%016" PRIx64 ";\t%s\n", memline, *memline, lineCopy);
+				free(lineCopy);
+				lineCopy = NULL;
+			} else {
+				printf("@0x%08x:\t0x%016" PRIx64 ";\t<Insufficient memory for line echo>\n", memline, *memline);
+			}
+		}
+		memline++; // This will need to be different, and memline will need to be uint64_t **		
+	}
 	
 	// If we're done, it is success, return NULL
 	return NULL;
@@ -605,7 +531,7 @@ int main(int argc, const char* argv[]) {
 	symbolTab_t  symbolTable  = NULL;
 	char * 		 lineBuffer = NULL;
 	int			 bufferLength = START_LINE_BUFF_SIZE;
-	progCnt_t	progCnt = {0, 0, 0};
+	progCnt_t	progCnt = {0, 0, 0, FIRST};
 	unsigned long locCount = 0;
 	unsigned long ddrOff  = 0;
 	char *	errPtr = NULL;
@@ -659,7 +585,7 @@ int main(int argc, const char* argv[]) {
 			strPtr = strchr(strPtr, '\0');
 		}
 		//printf("%4u:\t%s\n",progCnt.lineCount,lineBuffer);
-		errPtr = processLinePass1(lineBuffer, symbolTable, &progCnt, NULL, FIRST);
+		errPtr = processLine(lineBuffer, symbolTable, &progCnt, &dummyLine);
 		if (errPtr != NULL) printf("On line %u:\n\t%s\r\n\n", progCnt.lineCount, errPtr);
 		//break;		
 	}
@@ -676,6 +602,7 @@ int main(int argc, const char* argv[]) {
 	
 	strPtr = gTestString;
 	progCnt.lineCount = 0;
+	progCnt.whichPass = SECOND;
 	while( *strPtr != '\0' ) {
 		char * endOfLine = strPtr;
 		progCnt.lineCount++;
@@ -692,7 +619,7 @@ int main(int argc, const char* argv[]) {
 			strPtr = strchr(strPtr, '\0');
 		}
 		//printf("%4u:\t%s\n",progCnt.lineCount,lineBuffer);
-		errPtr = processLinePass2(lineBuffer, symbolTable, &progCnt, &dummyLine, SECOND);
+		errPtr = processLine(lineBuffer, symbolTable, &progCnt, &dummyLine);
 		if (errPtr != NULL) printf("On line %u:\n\t%s\r\n\n", progCnt.lineCount, errPtr);
 		//break;		
 	}
