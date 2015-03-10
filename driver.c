@@ -28,7 +28,7 @@ cmdFindFunct_ptr cmdLookupHandles[NUM_CORES] = {&TEST_CORE_CMD_LOOKUP};
 
 typedef struct progCounters {
 	unsigned long locCount;
-	unsigned long bramOffset;
+	unsigned long ddrOffset;
 } progCnt_t;
 
 inline char * enlargeBuffer(char * buffer, unsigned int numChars) {
@@ -37,7 +37,7 @@ inline char * enlargeBuffer(char * buffer, unsigned int numChars) {
 }
 
 void printSymbol(symbol_ptr toPrint) {
-	printf("\t @ 0x%08x %s \t%c \t%d \t%d \t0x%08x\n\r", toPrint, toPrint->name, toPrint->type, toPrint->locCount, toPrint->bramOffset, toPrint->next);
+	printf("\t @ 0x%08x %s \t%c \t%d \t%d \t0x%08x\n\r", toPrint, toPrint->name, toPrint->type, toPrint->locCount, toPrint->ddrOffset, toPrint->next);
 }
 
 void printChain(symbol_ptr head) {
@@ -80,7 +80,7 @@ cmdEntry_ptr findCommand(const char * labelName) {
 	return theCmd;
 }
 
-cmdEntry_ptr processCmd(const char * cmdStr, char * errMsg, unsigned long * locCount, unsigned long * bramOff) {
+cmdEntry_ptr processCmd(const char * cmdStr, char * errMsg, unsigned long * locCount, unsigned long * ddrOff) {
 	cmdEntry_ptr theCmd = findCommand(cmdStr);
 	if ( theCmd == NULL ) {
 		strcpy(errMsg, ERR_PARSE_CMD_NOT_FOUND);
@@ -110,7 +110,7 @@ char * checkArg(char * argStr, char * errMsg, symbolTab_t symbolTable, unsigned 
 		}
 	}
 	
-	// check for leading @, means we should replace w/ BRAM offset
+	// check for leading @, means we should replace w/ DDR offset
 	if ( *argStr == '@' ) argStr++;
 	
 	symbolicArg = findSymbol(argStr, symbolTable);
@@ -144,7 +144,7 @@ char * resolveArg(char * argStr, char * errMsg, uint64_t * argVal, symbolTab_t s
 		}
 	}
 	
-	// check for leading @, means we should replace w/ BRAM offset
+	// check for leading @, means we should replace w/ DDR offset
 	if ( *argStr == '@' ) {
 		useDDR = TRUE;
 		argStr++;
@@ -156,7 +156,7 @@ char * resolveArg(char * argStr, char * errMsg, uint64_t * argVal, symbolTab_t s
 			errMsg = strcpy(errMsg, ERR_LIT_DDR_LOOKUP);
 			return errMsg;
 		}
-		*argVal = useDDR ? symbolicArg->bramOffset : symbolicArg->locCount;
+		*argVal = useDDR ? symbolicArg->ddrOffset : symbolicArg->locCount;
 		return NULL;
 	}
 	
@@ -270,7 +270,7 @@ directiveStatus processDirective(const char * cmdStr, char * restLine, char * er
  *			 - Handles other assembler directives
  *			 - Looks up commands strings and keeps track of total memory size so it can be allocated for the second pass.
  *			 - Checks total argument count to match with the command
- *	\todo	Define processCmd(const char * cmdStr, char * errMsg, unsigned long * locCount, unsigned long * bramOff);
+ *	\todo	Define processCmd(const char * cmdStr, char * errMsg, unsigned long * locCount, unsigned long * ddrOff);
  *	\returns	NULL on success
  *	\returns	pointer to error description on failure (for printing)
  */
@@ -301,7 +301,7 @@ char * processLinePass1(char * lineBuffer, unsigned int lineNum, symbolTab_t sym
 		strcpy(labelStr, lineBuffer);
 		lineBuffer = ++buffPos;
 		
-		if (defineLabel(labelStr, errMsg, symbolTable, progCnt->locCount, progCnt->bramOffset) != 0) return errMsg; //Problem defining the label
+		if (defineLabel(labelStr, errMsg, symbolTable, progCnt->locCount, progCnt->ddrOffset) != 0) return errMsg; //Problem defining the label
 		
 		while ( isspace(*lineBuffer) ) lineBuffer++; // Skip whitespace between label and cmd
 	}
@@ -341,13 +341,13 @@ char * processLinePass1(char * lineBuffer, unsigned int lineNum, symbolTab_t sym
 	if ( checkDir == ERROR ) return errMsg;
 	
 	// This far means we're expecting an actual command
-	thisCmd = processCmd(cmdStr, errMsg, &(progCnt->locCount), &(progCnt->bramOffset));
+	thisCmd = processCmd(cmdStr, errMsg, &(progCnt->locCount), &(progCnt->ddrOffset));
 	if ( thisCmd == NULL ) return errMsg; // Problem looking up command. Report the error
 	
 
 	// If we're here, the command entry is stashed in thisCmd, so we can keep processing
 	progCnt->locCount	+= thisCmd->numLines;
-	progCnt->bramOffset	+= (thisCmd->numLines * CMD_BYTES);
+	progCnt->ddrOffset	+= (thisCmd->numLines * CMD_BYTES);
 	
 	// Check for correct number of arguments
 	// Also check format of arguments
@@ -448,7 +448,7 @@ char * processLinePass2(char * lineBuffer, int lineLength, symbolTab_t symbolTab
 	if ( checkDir == ERROR ) return errMsg;
 	
 	// This far means we're expecting an actual command
-	thisCmd = processCmd(cmdStr, errMsg, &(progCnt->locCount), &(progCnt->bramOffset));
+	thisCmd = processCmd(cmdStr, errMsg, &(progCnt->locCount), &(progCnt->ddrOffset));
 	if ( thisCmd == NULL ) return errMsg; // Problem looking up command. Report the error
 	
 	// Start building the command word:
@@ -459,7 +459,7 @@ char * processLinePass2(char * lineBuffer, int lineLength, symbolTab_t symbolTab
 	
 	// If we're here, the command entry is stashed in thisCmd, so we can keep processing
 	progCnt->locCount	+= thisCmd->numLines;
-	progCnt->bramOffset	+= (thisCmd->numLines * CMD_BYTES);
+	progCnt->ddrOffset	+= (thisCmd->numLines * CMD_BYTES);
 	
 	// Resolve individual arguments.  We've already vetted them for format
 	argCnt = thisCmd->numArgs;
@@ -559,7 +559,7 @@ int validLabel(const char * labelName, char * errMsg) {
  *	\returns  0 on success
  *	\returns -1 on failure
  */
-int defineLabel(const char * labelName, char * errMsg, symbolTab_t symbolTable, unsigned long locCount, unsigned long bramOff) {
+int defineLabel(const char * labelName, char * errMsg, symbolTab_t symbolTable, unsigned long locCount, unsigned long ddrOff) {
 	symbol_ptr thisLabel = NULL;
 	
 	if ( validLabel(labelName, errMsg) != 0 ) return -1; // errMsg populated by validLabel, just return unsuccessfully
@@ -594,7 +594,7 @@ int defineLabel(const char * labelName, char * errMsg, symbolTab_t symbolTable, 
 	// Either type 'U' or the first we've seen of it, so set the pointers appropriately
 	setTypeD(thisLabel);
 	thisLabel->locCount   = locCount;
-	thisLabel->bramOffset = bramOff;
+	thisLabel->ddrOffset = ddrOff;
 	return 0;
 }
 
@@ -627,7 +627,7 @@ int main(int argc, const char* argv[]) {
 	int			 bufferLength = START_LINE_BUFF_SIZE;
 	progCnt_t	progCnt = {0, 0};
 	unsigned long locCount = 0;
-	unsigned long bramOff  = 0;
+	unsigned long ddrOff  = 0;
 	char *	errPtr = NULL;
 	int i = 0;
 	unsigned int lineCount = 0;

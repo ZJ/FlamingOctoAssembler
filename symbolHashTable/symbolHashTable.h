@@ -36,7 +36,7 @@ typedef unsigned char red_hash_t; //!< Type returned when reducing the hashing f
  */
 typedef struct symbol {
 	unsigned long	locCount;	//!< Location counter value for this symbol
-	unsigned long	bramOffset;	//!< BRAM Offset value for this symbol
+	unsigned long	ddrOffset;	//!< DDR Offset value for this symbol
 	char *			name;		//!< Pointer to C-string containing the name
 	struct symbol *	next;		//!< Pointer to the next symbol in the linked list
 	char			type;		//!< Type of symbol ('U'ndefined, 'D'efined, or 'M'ultiply defined)
