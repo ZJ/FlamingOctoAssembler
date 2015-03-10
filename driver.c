@@ -26,9 +26,13 @@
 
 cmdFindFunct_ptr cmdLookupHandles[NUM_CORES] = {&TEST_CORE_CMD_LOOKUP};
 
+typedef enum {FIRST, SECOND} passNum_type;
+
 typedef struct progCounters {
-	unsigned long locCount;
-	unsigned long ddrOffset;
+	unsigned long	locCount;
+	unsigned long	ddrOffset;
+	unsigned long	lineCount;
+	passNum_type	whichPass;
 } progCnt_t;
 
 inline char * enlargeBuffer(char * buffer, unsigned int numChars) {
@@ -89,48 +93,17 @@ cmdEntry_ptr processCmd(const char * cmdStr, char * errMsg, unsigned long * locC
 	return theCmd;
 }
 
-char * checkArg(char * argStr, char * errMsg, symbolTab_t symbolTable, unsigned int lineCount) {
+char * resolveArg(char * argStr, char * errMsg, uint64_t * argVal, symbolTab_t symbolTable, progCnt_t * progCnt) {
+	uint64_t tempVal = 0x0ULL;
 	char * endConv = NULL;
 	symbol_ptr symbolicArg = NULL;
+	int useDDR = FALSE;
 	
 	// Kill trailing whitespace
 	endConv = strchr(argStr, '\0') - 1;
 	while( isspace(*endConv) ) endConv--; // Skip trailing whitespace
 	*(++endConv) = '\0';
 	endConv = NULL;
-	
-	if( isdigit(*argStr) ) { //Starts with a #, should be a constant
-		strtoull(argStr, &endConv, 0);
-		if ( endConv != strchr(argStr, '\0') ) {
-			// Not everything went to be a number
-			strcpy(errMsg, ERR_BAD_ARG_FMT);
-			return errMsg;
-		} else {
-			return NULL;
-		}
-	}
-	
-	// check for leading @, means we should replace w/ DDR offset
-	if ( *argStr == '@' ) argStr++;
-	
-	symbolicArg = findSymbol(argStr, symbolTable);
-	if (symbolicArg == NULL) {
-		symbolicArg = addSymbol(argStr, symbolTable);
-		if (symbolicArg == NULL) {
-			strcpy(errMsg, ERR_LBL_ALLOC_FAIL);
-			return errMsg;
-		}
-		symbolicArg->locCount = lineCount; // Mark down first sighting line #
-	}
-	
-	return NULL;
-}
-
-char * resolveArg(char * argStr, char * errMsg, uint64_t * argVal, symbolTab_t symbolTable) {
-	uint64_t tempVal = 0x0ULL;
-	char * endConv = NULL;
-	symbol_ptr symbolicArg = NULL;
-	int useDDR = FALSE;
 	
 	if( isdigit(*argStr) ) { //Starts with a #, should be a constant
 		tempVal = strtoull(argStr, &endConv, 0);
@@ -145,18 +118,24 @@ char * resolveArg(char * argStr, char * errMsg, uint64_t * argVal, symbolTab_t s
 	}
 	
 	// check for leading @, means we should replace w/ DDR offset
-	if ( *argStr == '@' ) {
-		useDDR = TRUE;
-		argStr++;
-	}
+	if ( useDDR = (*argStr == '@') ) argStr++;
 	
 	symbolicArg = findSymbol(argStr, symbolTable);
-	if (symbolicArg != NULL) {
-		if ( useDDR && (symbolicArg->type == 'L') ) {
+	if (symbolicArg != NULL) { // Found the symbol
+		if ( useDDR && (symbolicArg->type == 'L') ) { // Address of DDR is not allowed
 			errMsg = strcpy(errMsg, ERR_LIT_DDR_LOOKUP);
 			return errMsg;
 		}
+		// Set argVal to retrieved value.  Costs nothing, so do it always
 		*argVal = useDDR ? symbolicArg->ddrOffset : symbolicArg->locCount;
+		return NULL;
+	} else if ( progCnt->whichPass == FIRST ) { // No symbol yet, but first pass
+		symbolicArg = addSymbol(argStr, symbolTable);
+		if (symbolicArg == NULL) {
+			strcpy(errMsg, ERR_LBL_ALLOC_FAIL);
+			return errMsg;
+		}
+		symbolicArg->locCount = progCnt->lineCount; // Mark down first sighting line #
 		return NULL;
 	}
 	
@@ -274,7 +253,7 @@ directiveStatus processDirective(const char * cmdStr, char * restLine, char * er
  *	\returns	NULL on success
  *	\returns	pointer to error description on failure (for printing)
  */
-char * processLinePass1(char * lineBuffer, unsigned int lineNum, symbolTab_t symbolTable, progCnt_t * progCnt, unsigned int lineCount) {
+char * processLinePass1(char * lineBuffer, symbolTab_t symbolTable, progCnt_t * progCnt, uint64_t * memline, passNum_type whichPass) {
 	static char labelStr[256] = "";
 	static char cmdStr[9] = "";
 	static char errMsg[256] = "";
@@ -355,15 +334,16 @@ char * processLinePass1(char * lineBuffer, unsigned int lineNum, symbolTab_t sym
 
 	argCnt = 0;
 	while (*lineBuffer != '\0') {
+		uint64_t dummyVal;
 		argCnt++;
 		buffPos = strchr(lineBuffer, ARG_DELIMIT);
 		if (buffPos != NULL) {
 			*buffPos = '\0';
-			if (checkArg(lineBuffer, errMsg, symbolTable, lineCount) != NULL) return errMsg;
+			if ( resolveArg(lineBuffer, errMsg, &dummyVal, symbolTable, progCnt) != NULL) return errMsg;
 			lineBuffer = ++buffPos;
 			while ( isspace(*lineBuffer) ) lineBuffer++; // Skip any whitespace before the next argument
 		} else {
-			if (checkArg(lineBuffer, errMsg, symbolTable, lineCount) != NULL) return errMsg;
+			if ( resolveArg(lineBuffer, errMsg, &dummyVal, symbolTable, progCnt) != NULL) return errMsg;
 			lineBuffer = strchr(lineBuffer, '\0');
 		}
 	}
@@ -384,7 +364,7 @@ char * processLinePass1(char * lineBuffer, unsigned int lineNum, symbolTab_t sym
  *	\returns	NULL on success
  *	\returns	pointer to error description on failure (for printing)
  */
-char * processLinePass2(char * lineBuffer, int lineLength, symbolTab_t symbolTable, progCnt_t * progCnt, uint64_t * memline) {
+char * processLinePass2(char * lineBuffer, symbolTab_t symbolTable, progCnt_t * progCnt, uint64_t * memline, passNum_type whichPass) {
 	static char labelStr[256] = "";
 	static char cmdStr[9] = "";
 	static char errMsg[256] = "";
@@ -478,7 +458,7 @@ char * processLinePass2(char * lineBuffer, int lineLength, symbolTab_t symbolTab
 		while ( isspace(*buffPos) ) buffPos--; // Rewind over trailing whitespace
 		*(++buffPos) = '\0';
 		strcpy(labelStr, startArg);
-		if( resolveArg( labelStr, errMsg, (argArray + i), symbolTable) != NULL) return errMsg;
+		if( resolveArg( labelStr, errMsg, (argArray + i), symbolTable, progCnt) != NULL) return errMsg;
 	}
 		
 	// Now put the arguments where they should go.
@@ -625,7 +605,7 @@ int main(int argc, const char* argv[]) {
 	symbolTab_t  symbolTable  = NULL;
 	char * 		 lineBuffer = NULL;
 	int			 bufferLength = START_LINE_BUFF_SIZE;
-	progCnt_t	progCnt = {0, 0};
+	progCnt_t	progCnt = {0, 0, 0};
 	unsigned long locCount = 0;
 	unsigned long ddrOff  = 0;
 	char *	errPtr = NULL;
@@ -647,7 +627,7 @@ int main(int argc, const char* argv[]) {
 		
 	while( *strPtr != '\0' ) {
 		char * endOfLine = strPtr;
-		lineCount++;
+		progCnt.lineCount++;
 		// Building a line buffer formation unit here
 		endOfLine = strchr(strPtr,'\n');
 		if (endOfLine != NULL) {
@@ -678,9 +658,9 @@ int main(int argc, const char* argv[]) {
 			strcpy(lineBuffer, strPtr);
 			strPtr = strchr(strPtr, '\0');
 		}
-		//printf("%4u:\t%s\n",lineCount,lineBuffer);
-		errPtr = processLinePass1(lineBuffer, strlen(lineBuffer), symbolTable, &progCnt, lineCount);
-		if (errPtr != NULL) printf("On line %u:\n\t%s\r\n\n", lineCount, errPtr);
+		//printf("%4u:\t%s\n",progCnt.lineCount,lineBuffer);
+		errPtr = processLinePass1(lineBuffer, symbolTable, &progCnt, NULL, FIRST);
+		if (errPtr != NULL) printf("On line %u:\n\t%s\r\n\n", progCnt.lineCount, errPtr);
 		//break;		
 	}
 	if (DEBUG_PRINT) printf("\nOrig. Buffer:\n%s\n",gTestString);
@@ -695,10 +675,10 @@ int main(int argc, const char* argv[]) {
 	}
 	
 	strPtr = gTestString;
-	lineCount = 0;
+	progCnt.lineCount = 0;
 	while( *strPtr != '\0' ) {
 		char * endOfLine = strPtr;
-		lineCount++;
+		progCnt.lineCount++;
 		// Building a line buffer formation unit here
 		endOfLine = strchr(strPtr,'\n');
 		if (endOfLine != NULL) {
@@ -711,9 +691,9 @@ int main(int argc, const char* argv[]) {
 			strcpy(lineBuffer, strPtr);
 			strPtr = strchr(strPtr, '\0');
 		}
-		//printf("%4u:\t%s\n",lineCount,lineBuffer);
-		errPtr = processLinePass2(lineBuffer, strlen(lineBuffer), symbolTable, &progCnt, &dummyLine);
-		if (errPtr != NULL) printf("On line %u:\n\t%s\r\n\n", lineCount, errPtr);
+		//printf("%4u:\t%s\n",progCnt.lineCount,lineBuffer);
+		errPtr = processLinePass2(lineBuffer, symbolTable, &progCnt, &dummyLine, SECOND);
+		if (errPtr != NULL) printf("On line %u:\n\t%s\r\n\n", progCnt.lineCount, errPtr);
 		//break;		
 	}
 
