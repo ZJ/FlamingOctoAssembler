@@ -35,6 +35,13 @@ typedef struct progCounters {
 	passNum_type	whichPass;
 } progCnt_t;
 
+inline void startSecondPass(progCnt_t * progCount) {
+	progCount->locCount		= 0;
+	progCount->ddrOffset	= 0;
+	progCount->lineCount	= 0;
+	progCount->whichPass	= SECOND;
+}
+
 inline char * enlargeBuffer(char * buffer, unsigned int numChars) {
 	if (DEBUG_PRINT) printf("Enlarging line buffer to %u\n", numChars);
 	return realloc(buffer, (numChars+1)*sizeof(char));
@@ -377,8 +384,9 @@ char * processLine(char * lineBuffer, symbolTab_t symbolTable, progCnt_t * progC
 	
 	// All the output stuff only happens on the second pass
 	if ( progCnt->whichPass == SECOND) {
-		uint64_t thisLine = 0x0ULL;
-		uint64_t thisMask = 0xFFFFFFFFFFFFFFFFULL;
+		uint64_t thisLine	= 0x0ULL;
+		uint64_t thisMask	= 0xFFFFFFFFFFFFFFFFULL;
+		uint64_t * storLoc	= (memline + (progCnt->ddrOffset/CMD_BYTES) - 1);
 		
 		// Start building the command word:
 		if ( (thisCmd->flags & WR_OPCODE_MASK) != 0 ) {
@@ -411,17 +419,16 @@ char * processLine(char * lineBuffer, symbolTab_t symbolTable, progCnt_t * progC
 		}
 		
 		// We've got a command, now write the opcode to memory
-		*memline = thisLine;
+		*(storLoc) = thisLine;
 		if (DEBUG_PRINT) {
 			if (lineCopy != NULL) {
-				printf("@0x%08x:\t0x%016" PRIx64 ";\t%s\n", memline, *memline, lineCopy);
+				printf("@0x%08x:\t0x%016" PRIx64 ";\t%s\n", storLoc, *storLoc, lineCopy);
 				free(lineCopy);
 				lineCopy = NULL;
 			} else {
-				printf("@0x%08x:\t0x%016" PRIx64 ";\t<Insufficient memory for line echo>\n", memline, *memline);
+				printf("@0x%08x:\t0x%016" PRIx64 ";\t<Insufficient memory for line echo>\n", storLoc, *storLoc);
 			}
 		}
-		memline++; // This will need to be different, and memline will need to be uint64_t **		
 	}
 	
 	// If we're done, it is success, return NULL
@@ -527,18 +534,21 @@ char * undefinedSymbolCheck(symbolTab_t symbolTable) {
 	return NULL;
 }
 
+inline unsigned long numBlocks(unsigned long offsetCnt) {
+	return (offsetCnt == 0) ? 1 : (offsetCnt-1)/BLOCK_SIZE + 1;
+}
+
 int main(int argc, const char* argv[]) {
 	symbolTab_t  symbolTable  = NULL;
 	char * 		 lineBuffer = NULL;
 	int			 bufferLength = START_LINE_BUFF_SIZE;
 	progCnt_t	progCnt = {0, 0, 0, FIRST};
-	unsigned long locCount = 0;
-	unsigned long ddrOff  = 0;
 	char *	errPtr = NULL;
-	int i = 0;
-	unsigned int lineCount = 0;
-	char * strPtr = gTestString;
 	uint64_t dummyLine = 0;
+	uint64_t * progStorage = NULL;
+
+	char * strPtr = gTestString;
+	char lastChar = *strPtr;
 	
 	if (DEBUG_PRINT) printf("++++====++++\nIn main()\n");
 	
@@ -550,40 +560,30 @@ int main(int argc, const char* argv[]) {
 		printf("Problem allocating symbol table\n");
 		return -1;
 	}
-		
-	while( *strPtr != '\0' ) {
+	
+	while( lastChar != '\0' ) {
 		char * endOfLine = strPtr;
+		size_t len = 0;
 		progCnt.lineCount++;
 		// Building a line buffer formation unit here
 		endOfLine = strchr(strPtr,'\n');
-		if (endOfLine != NULL) {
-			size_t len = (endOfLine-strPtr);
-			if (len > bufferLength) {
-				if (DEBUG_PRINT) printf("len: %u, buffLen: %u\n", len, bufferLength);
-				lineBuffer = enlargeBuffer(lineBuffer, len);
-				if (lineBuffer == NULL) {
-					printf("Ran out of memory resizing line buffer\n");
-					return -1;
-				}
-				bufferLength = len;
+		if (endOfLine == NULL) endOfLine = strchr(strPtr, '\0');
+		lastChar = *endOfLine;
+		
+		len = (endOfLine-strPtr);
+		if (len > bufferLength) {
+			if (DEBUG_PRINT) printf("len: %u, buffLen: %u\n", len, bufferLength);
+			lineBuffer = enlargeBuffer(lineBuffer, len);
+			if (lineBuffer == NULL) {
+				printf("Ran out of memory resizing line buffer\n");
+				return -1;
 			}
-			strncpy(lineBuffer, strPtr, len);
-			* (lineBuffer + (len)) = '\0';
-			strPtr = ++endOfLine;
-		} else {
-			size_t len = strlen(strPtr);
-			if (len > bufferLength) {
-				if (DEBUG_PRINT) printf("len: %u, buffLen: %u\n", len, bufferLength);
-				lineBuffer = enlargeBuffer(lineBuffer, len);
-				if (lineBuffer == NULL) {
-					printf("Ran out of memory resizing line buffer\n");
-					return -1;
-				}
-				bufferLength = len;
-			}
-			strcpy(lineBuffer, strPtr);
-			strPtr = strchr(strPtr, '\0');
+			bufferLength = len;
 		}
+		strncpy(lineBuffer, strPtr, len);
+		* (lineBuffer + (len)) = '\0';
+		strPtr = endOfLine + 1;
+		
 		//printf("%4u:\t%s\n",progCnt.lineCount,lineBuffer);
 		errPtr = processLine(lineBuffer, symbolTable, &progCnt, &dummyLine);
 		if (errPtr != NULL) printf("On line %u:\n\t%s\r\n\n", progCnt.lineCount, errPtr);
@@ -600,30 +600,44 @@ int main(int argc, const char* argv[]) {
 		return -1;
 	}
 	
+	progStorage = malloc( numBlocks(progCnt.ddrOffset) * BLOCK_SIZE * sizeof(uint64_t));
+	if (progStorage == NULL) {
+		printf("Could not allocate program storage\n");
+		return -1;
+	}
+	
 	strPtr = gTestString;
-	progCnt.lineCount = 0;
-	progCnt.whichPass = SECOND;
-	while( *strPtr != '\0' ) {
+	startSecondPass(&progCnt);
+	lastChar = *strPtr;
+	
+	while( lastChar != '\0' ) {
 		char * endOfLine = strPtr;
+		size_t len = 0;
 		progCnt.lineCount++;
 		// Building a line buffer formation unit here
 		endOfLine = strchr(strPtr,'\n');
-		if (endOfLine != NULL) {
-			size_t len = (endOfLine-strPtr);
-			strncpy(lineBuffer, strPtr, len);
-			* (lineBuffer + (len)) = '\0';
-			strPtr = ++endOfLine;
-		} else {
-			size_t len = strlen(strPtr);
-			strcpy(lineBuffer, strPtr);
-			strPtr = strchr(strPtr, '\0');
-		}
+		if (endOfLine == NULL) endOfLine = strchr(strPtr, '\0');
+		lastChar = *endOfLine;
+
+		len = (endOfLine-strPtr);
+		strncpy(lineBuffer, strPtr, len);
+		* (lineBuffer + (len)) = '\0';
+		strPtr = ++endOfLine;
+
 		//printf("%4u:\t%s\n",progCnt.lineCount,lineBuffer);
-		errPtr = processLine(lineBuffer, symbolTable, &progCnt, &dummyLine);
+		errPtr = processLine(lineBuffer, symbolTable, &progCnt, progStorage);
 		if (errPtr != NULL) printf("On line %u:\n\t%s\r\n\n", progCnt.lineCount, errPtr);
 		//break;		
 	}
-
+	
+	{
+		int i;
+		printf("Code code code:\n");
+		for ( i=0; i<20; i++) {
+			printf("\t%p:\t0x%016" PRIx64 "\n", progStorage+i, *(progStorage+i));
+		}
+	}
+	
 	freeSymbolTable(symbolTable);
 	symbolTable = NULL;
 	
