@@ -369,7 +369,7 @@ char * processLine(char * lineBuffer, symbolTab_t symbolTable, progCnt_t * progC
 			
 			*buffPos = '\0'; // Switch the label sep. to NULL char
 			strcpy(labelStr, lineBuffer);
-			if (defineLabel(labelStr, errMsg, symbolTable, &progCnt) != 0) return errMsg; //Problem defining the label
+			if (defineLabel(labelStr, errMsg, symbolTable, progCnt) != 0) return errMsg; //Problem defining the label
 		}
 		// Start after the label separator and skip whitespace
 		lineBuffer = ++buffPos;
