@@ -369,7 +369,7 @@ char * processLine(char * lineBuffer, symbolTab_t symbolTable, progCnt_t * progC
 			
 			*buffPos = '\0'; // Switch the label sep. to NULL char
 			strcpy(labelStr, lineBuffer);
-			if (defineLabel(labelStr, errMsg, symbolTable, progCnt->locCount, progCnt->ddrOffset) != 0) return errMsg; //Problem defining the label
+			if (defineLabel(labelStr, errMsg, symbolTable, &progCnt) != 0) return errMsg; //Problem defining the label
 		}
 		// Start after the label separator and skip whitespace
 		lineBuffer = ++buffPos;
@@ -537,7 +537,7 @@ int validLabel(const char * labelName, char * errMsg) {
  *	\returns  0 on success
  *	\returns -1 on failure
  */
-int defineLabel(const char * labelName, char * errMsg, symbolTab_t symbolTable, unsigned long locCount, unsigned long ddrOff) {
+int defineLabel(const char * labelName, char * errMsg, symbolTab_t symbolTable, progCnt_t * prgCnt) {
 	symbol_ptr thisLabel = NULL;
 	
 	if ( validLabel(labelName, errMsg) != 0 ) return -1; // errMsg populated by validLabel, just return unsuccessfully
@@ -571,8 +571,8 @@ int defineLabel(const char * labelName, char * errMsg, symbolTab_t symbolTable, 
 	
 	// Either type 'U' or the first we've seen of it, so set the pointers appropriately
 	setTypeD(thisLabel);
-	thisLabel->locCount   = locCount;
-	thisLabel->ddrOffset = ddrOff;
+	thisLabel->locCount   = prgCnt->locCount;
+	thisLabel->ddrOffset  = prgCnt->ddrOffset;
 	return 0;
 }
 
