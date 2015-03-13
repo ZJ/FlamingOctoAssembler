@@ -49,7 +49,7 @@ extern "C" {
 /*!	\brief	Structure storing information used in Instruction to OpCode conversion
  *	\details See \ref cmdTableFormat.h for macros defining structure of the ::cmdEntry::flags field
  */
-typedef struct cmdEntry {
+typedef const struct cmdEntry {
 	unsigned char	command[9];	//!< The C-string expected for command translation
 	unsigned char	opcode;		//!< The opcode expected by HW for the command
 	unsigned char	numArgs;	//!< The number of arguments to expect for the command
