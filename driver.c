@@ -24,6 +24,8 @@
 #define TEST_CORE_CMD_LOOKUP getCmdTest
 // Define up to the right number of cores
 
+#define CORE_ERR_STR "TOOMANY"
+
 cmdFindFunct_ptr cmdLookupHandles[NUM_CORES] = {&TEST_CORE_CMD_LOOKUP};
 
 typedef enum {FIRST, SECOND} passNum_type;
@@ -98,6 +100,26 @@ cmdEntry_ptr processCmd(const char * cmdStr, char * errMsg, unsigned long * locC
 		return NULL;
 	}
 	return theCmd;
+}
+
+char * grabCmd(char * cmdStr, char ** buffer) {
+	char * buffPos = *buffer;
+	int i;
+	
+	// Should be at the beginning of the command by here, so go until whitespace
+	*cmdStr = '\0';
+	for (i=0; i < MAX_CMD_LEN; i++) {
+		// Process Line for command Here
+		if ( isspace(*(*buffer)) || ((*(*buffer)) == '\0') ) {
+			(*(*buffer)) = '\0';
+			strcpy(cmdStr, buffPos);
+			(*buffer)++;// Increment past the null we just inserted
+			break;
+		}
+		(*buffer)++;
+	}
+	
+	return cmdStr;
 }
 
 char * resolveArg(char * argStr, char * errMsg, uint64_t * argVal, symbolTab_t symbolTable, progCnt_t * progCnt) {
@@ -234,15 +256,67 @@ directiveStatus processSetLC(const char * restLine, char * errMsg, progCnt_t * p
 	return DIRECTIVE;
 }
 
-directiveStatus processDirective(const char * cmdStr, char * restLine, char * errMsg, progCnt_t * progCnt, symbolTab_t symbolTable, int firstPass) {
+// Should add enough err codes to pad to a block edge.  Maybe block size needs to be an argument?
+directiveStatus processPadStack(char * cmdStr, char * restLine, char * errMsg, progCnt_t * progCnt, unsigned int * rptCnt) {
+	unsigned long padBlockSize;
+	char * endConv = NULL;
+	unsigned int cmdCount = ((progCnt->ddrOffset)/CMD_BYTES);
+	while ( isspace(*restLine) ) restLine++;
+	
+	padBlockSize = strtoul(restLine, &endConv, 0);
+	if (padBlockSize == 0) padBlockSize = BLOCK_SIZE;
+	while ( isspace(*endConv) ) endConv++;
+	if (*endConv != '\0') {
+		strcpy(errMsg, "ERR_PARSE_ARG_CNT");
+		return ERROR;
+	}
+		
+	strcpy(cmdStr, CORE_ERR_STR);
+	*restLine = '\0';
+	*rptCnt = padBlockSize - (cmdCount%padBlockSize);
+	
+	printf("Pad invocation: \"%s\", \"%s\", %u, %u\n", cmdStr, restLine, *rptCnt, padBlockSize);
+	
+	return PART_DIRECTIVE;
+}	
+
+directiveStatus processRepeat(char * cmdStr, char * restLine, char * errMsg, unsigned int * rptCnt) {
+	char * newStart = restLine;
+	
+	// strtou will skip whitespace
+	*rptCnt = strtoul(restLine, &newStart, 0);
+	
+	// skip whitespace, grab command, skip whitespace
+	while ( isspace(*newStart) ) newStart++;
+	printf("%s\n",newStart);
+	if ( *grabCmd(cmdStr, &newStart) == '\0' ) {
+		strcpy(errMsg, ERR_PARSE_CMD_LONG);
+		return ERROR;
+	}
+	while ( isspace(*newStart) ) newStart++;
+	
+	memmove(restLine, newStart, (strlen(newStart)+1)*sizeof(char));
+
+	return PART_DIRECTIVE;
+}
+
+directiveStatus processDirective(char * cmdStr, char * restLine, char * errMsg, progCnt_t * progCnt, symbolTab_t symbolTable, unsigned int * rptCnt) {
 	switch (*(cmdStr++)) {
 		case 'L':
-			if ( strcmp(cmdStr, /*L*/"IT") == 0 ) return firstPass ? processLitDec(restLine, errMsg, symbolTable) : DIRECTIVE;
+			if ( strcmp(cmdStr, /*L*/"IT") == 0 ) return (progCnt->whichPass == FIRST) ? processLitDec(restLine, errMsg, symbolTable) : DIRECTIVE;
 			// Do more ifs for other 'L' directives
 			break;
 		case 'S':
 			if ( strcmp(cmdStr, /*S*/"ETLC") == 0 ) return processSetLC(restLine, errMsg, progCnt);
 			// Do more ifs for other 'S'
+			break;
+		case 'P':
+			if (strcmp(cmdStr, /*P*/"AD") == 0 ) return processPadStack(cmdStr - 1, restLine, errMsg, progCnt, rptCnt);
+			// Do more ifs for other 'P'
+			break;
+		case 'R':
+			if (strcmp(cmdStr, /*R*/"PT") == 0 ) return processRepeat(cmdStr - 1, restLine, errMsg, rptCnt);
+			// Do more ifs for other 'R'
 			break;
 		default:
 			break;
@@ -270,6 +344,7 @@ char * processLine(char * lineBuffer, symbolTab_t symbolTable, progCnt_t * progC
 	static directiveStatus checkDir = NOTDIRECTIVE;
 	uint64_t argArray[MAX_ARG_COUNT] ={0};
 	char * lineCopy = NULL;
+	unsigned int rptCount = 1;
 	
 	if (DEBUG_PRINT) {
 		lineCopy = malloc((strlen(lineBuffer)+1)*sizeof(char));
@@ -313,30 +388,16 @@ char * processLine(char * lineBuffer, symbolTab_t symbolTable, progCnt_t * progC
 		*buffPos = '\0';
 	}
 	
-	// Should be at the beginning of the command by here, so go until whitespace
-	*cmdStr = '\0';
-	buffPos = lineBuffer;
-	for (i=0; i < MAX_CMD_LEN; i++) {
-		// Process Line for command Here
-		if ( isspace(*lineBuffer) || ((*lineBuffer) == '\0') ) {
-			*lineBuffer = '\0';
-			strcpy(cmdStr, buffPos);
-			lineBuffer++;// Increment past the null we just inserted
-			break;
-		}
-		lineBuffer++;
-	}
-	
 	// If we didn't hit whitespace before the max length,
 	// it never got copied, so cmdStr[0] is '\0'
 	// If we find that, the command was thus too long.
-	if ( cmdStr[0] == '\0' ) {
+	if ( *grabCmd(cmdStr, &lineBuffer) == '\0' ) {
 		strcpy(errMsg, ERR_PARSE_CMD_LONG);
 		return errMsg;
 	}
 	
 	// Check if it is a assembler directive, and take appropriate action.
-	checkDir = processDirective(cmdStr, lineBuffer, errMsg, progCnt, symbolTable, progCnt->whichPass == FIRST);
+	checkDir = processDirective(cmdStr, lineBuffer, errMsg, progCnt, symbolTable, &rptCount);
 	if ( checkDir == DIRECTIVE ) return NULL;
 	if ( checkDir == ERROR ) return errMsg;
 	
@@ -345,8 +406,8 @@ char * processLine(char * lineBuffer, symbolTab_t symbolTable, progCnt_t * progC
 	if ( thisCmd == NULL ) return errMsg; // Problem looking up command. Report the error
 
 	// If we're here, the command entry is stashed in thisCmd, so we can keep processing
-	progCnt->locCount	+= thisCmd->numLines;
-	progCnt->ddrOffset	+= (thisCmd->numLines * CMD_BYTES);
+	progCnt->locCount	+= (thisCmd->numLines * rptCount);
+	progCnt->ddrOffset	+= (thisCmd->numLines * CMD_BYTES * rptCount);
 	
 	// Check for correct number of arguments
 	// Also check format of arguments
@@ -386,7 +447,7 @@ char * processLine(char * lineBuffer, symbolTab_t symbolTable, progCnt_t * progC
 	if ( progCnt->whichPass == SECOND) {
 		uint64_t thisLine	= 0x0ULL;
 		uint64_t thisMask	= 0xFFFFFFFFFFFFFFFFULL;
-		uint64_t * storLoc	= (memline + (progCnt->ddrOffset/CMD_BYTES) - 1);
+		uint64_t * storLoc	= (memline + (progCnt->ddrOffset/CMD_BYTES) - rptCount);
 		
 		// Start building the command word:
 		if ( (thisCmd->flags & WR_OPCODE_MASK) != 0 ) {
@@ -419,14 +480,18 @@ char * processLine(char * lineBuffer, symbolTab_t symbolTable, progCnt_t * progC
 		}
 		
 		// We've got a command, now write the opcode to memory
-		*(storLoc) = thisLine;
-		if (DEBUG_PRINT) {
-			if (lineCopy != NULL) {
-				printf("@0x%08x:\t0x%016" PRIx64 ";\t%s\n", storLoc, *storLoc, lineCopy);
-				free(lineCopy);
-				lineCopy = NULL;
-			} else {
-				printf("@0x%08x:\t0x%016" PRIx64 ";\t<Insufficient memory for line echo>\n", storLoc, *storLoc);
+		for( i=0; i<rptCount; i++) {
+			*(storLoc + i) = thisLine;
+			if (DEBUG_PRINT) {
+				if ( i == 0 ) {
+					if (lineCopy != NULL) {
+						printf("@0x%08x:\t0x%016" PRIx64 ";\t%s\n", storLoc, *(storLoc), lineCopy);
+						free(lineCopy);
+						lineCopy = NULL;
+					} else {
+						printf("@0x%08x:\t0x%016" PRIx64 ";\t<Insufficient memory for line echo>\n", storLoc, *storLoc);
+					}
+				} else printf("@0x%08x:\t0x%016" PRIx64 ";\t  (RPT #%u)\n", storLoc + i, *(storLoc + i), i+1);
 			}
 		}
 	}

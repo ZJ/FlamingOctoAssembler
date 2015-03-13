@@ -44,7 +44,7 @@ typedef struct symbol {
 typedef symbol_t * symbol_ptr;		//!< Pointer to a ::symbol (::symbol_t) object
 typedef symbol_ptr * symbolTab_t;	//!< Pointer to a ::symbol_ptr, represents root of a symbol table
 
-typedef enum {DIRECTIVE, NOTDIRECTIVE, ERROR} directiveStatus;
+typedef enum {DIRECTIVE, PART_DIRECTIVE, NOTDIRECTIVE, ERROR} directiveStatus;
 
 // Hash & Index-related functions
 /*!	\brief	Takes a C-style string and return the raw Shift-Add-XOR hash
