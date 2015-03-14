@@ -22,8 +22,9 @@ extern "C" {
 #define ARG_DELIMIT ','		//!< Delimits arguments to commands
 #define MAX_CMD_LEN 8		//!< Maximum number of characters for a command
 
-#define CMD_NOP_CODE 0x3E
-#define CMD_ERR_CODE 0x3F	
+#define CORE_ERR_STR "ERR"
+#define CMD_NOP_CODE 0x00
+#define CMD_ERR_CODE 0x0C	
 
 /*! \name Masks for cmdEntry->flags Field
  *
@@ -53,7 +54,6 @@ typedef const struct cmdEntry {
 	unsigned char	command[9];	//!< The C-string expected for command translation
 	unsigned char	opcode;		//!< The opcode expected by HW for the command
 	unsigned char	numArgs;	//!< The number of arguments to expect for the command
-	unsigned char	numLines;	//!< The number of 64-bit memory words the command will occupy on-device 
 	unsigned char	flags;		//!< A bitfield giving specific storage requirements for the command
 } cmdEntry_t;
 typedef cmdEntry_t * cmdEntry_ptr;	//!< Pointer to cmdENtry_t (cmdEntry)

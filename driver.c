@@ -1,7 +1,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
-#include <stdint.h>
 #include <inttypes.h>
 
 #include "symbolHashTable/symbolHashTable.h"
@@ -24,7 +23,6 @@
 #define TEST_CORE_CMD_LOOKUP getCmdTest
 // Define up to the right number of cores
 
-#define CORE_ERR_STR "TOOMANY"
 
 cmdFindFunct_ptr cmdLookupHandles[NUM_CORES] = {&TEST_CORE_CMD_LOOKUP};
 
@@ -67,24 +65,6 @@ void printHashTable(symbol_ptr * symbolTable) {
 	}
 }
 
-#define BIT(n) ((lfsrState >> (n)) & 0x01)
-char lfsrChar (unsigned int seed) {
-	static unsigned int lfsrState;
-	unsigned int fbBit = 0;
-	if (seed != ((unsigned int) -1) ) lfsrState = seed;
-	fbBit = BIT(0) ^ BIT(31) ^ BIT(19) ^ BIT(11) ^ BIT(3);
-	lfsrState = (lfsrState << 1) & 0xFFFFFFFE | fbBit;
-	
-	return lfsrState % 93 + 33;
-}
-
-static char * lfsrWord (unsigned int seed) {
-	static char word[9] = "\0\0\0\0\0\0\0\0\0";
-	static char i;
-	for (i=0; i<8; i++) word[i] = lfsrChar(seed);
-	return word;
-}
-
 cmdEntry_ptr findCommand(const char * labelName) {
 	cmdEntry_ptr theCmd = NULL;
 	unsigned int length = strlen(labelName);
@@ -108,7 +88,7 @@ char * grabCmd(char * cmdStr, char ** buffer) {
 	
 	// Should be at the beginning of the command by here, so go until whitespace
 	*cmdStr = '\0';
-	for (i=0; i < MAX_CMD_LEN; i++) {
+	for (i=0; i < (MAX_CMD_LEN+1); i++) {
 		// Process Line for command Here
 		if ( isspace(*(*buffer)) || ((*(*buffer)) == '\0') ) {
 			(*(*buffer)) = '\0';
@@ -275,7 +255,7 @@ directiveStatus processPadStack(char * cmdStr, char * restLine, char * errMsg, p
 	*restLine = '\0';
 	*rptCnt = padBlockSize - (cmdCount%padBlockSize);
 	
-	printf("Pad invocation: \"%s\", \"%s\", %u, %u\n", cmdStr, restLine, *rptCnt, padBlockSize);
+	if (DEBUG_PRINT) printf("PAD invocation: \"%s\", \"%s\", %u, %u\n", cmdStr, restLine, *rptCnt, padBlockSize);
 	
 	return PART_DIRECTIVE;
 }	
@@ -288,7 +268,7 @@ directiveStatus processRepeat(char * cmdStr, char * restLine, char * errMsg, uns
 	
 	// skip whitespace, grab command, skip whitespace
 	while ( isspace(*newStart) ) newStart++;
-	printf("%s\n",newStart);
+	
 	if ( *grabCmd(cmdStr, &newStart) == '\0' ) {
 		strcpy(errMsg, ERR_PARSE_CMD_LONG);
 		return ERROR;
@@ -406,8 +386,8 @@ char * processLine(char * lineBuffer, symbolTab_t symbolTable, progCnt_t * progC
 	if ( thisCmd == NULL ) return errMsg; // Problem looking up command. Report the error
 
 	// If we're here, the command entry is stashed in thisCmd, so we can keep processing
-	progCnt->locCount	+= (thisCmd->numLines * rptCount);
-	progCnt->ddrOffset	+= (thisCmd->numLines * CMD_BYTES * rptCount);
+	progCnt->locCount	+= (rptCount);
+	progCnt->ddrOffset	+= (CMD_BYTES * rptCount);
 	
 	// Check for correct number of arguments
 	// Also check format of arguments
@@ -485,13 +465,13 @@ char * processLine(char * lineBuffer, symbolTab_t symbolTable, progCnt_t * progC
 			if (DEBUG_PRINT) {
 				if ( i == 0 ) {
 					if (lineCopy != NULL) {
-						printf("@0x%08x:\t0x%016" PRIx64 ";\t%s\n", storLoc, *(storLoc), lineCopy);
+						printf("@ 0x%p:\t0x%016" PRIx64 ";\t%s\n", storLoc, *(storLoc), lineCopy);
 						free(lineCopy);
 						lineCopy = NULL;
 					} else {
-						printf("@0x%08x:\t0x%016" PRIx64 ";\t<Insufficient memory for line echo>\n", storLoc, *storLoc);
+						printf("@ 0x%p:\t0x%016" PRIx64 ";\t<Insufficient memory for line echo>\n", storLoc, *storLoc);
 					}
-				} else printf("@0x%08x:\t0x%016" PRIx64 ";\t  (RPT #%u)\n", storLoc + i, *(storLoc + i), i+1);
+				} else printf("@ 0x%p:\t0x%016" PRIx64 ";\t  (RPT #%u)\n", storLoc + i, *(storLoc + i), i+1);
 			}
 		}
 	}
@@ -695,7 +675,7 @@ int main(int argc, const char* argv[]) {
 		//break;		
 	}
 	
-	{
+	if (DEBUG_PRINT) {
 		int i;
 		printf("Code code code:\n");
 		for ( i=0; i<20; i++) {

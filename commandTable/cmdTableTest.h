@@ -1,6 +1,6 @@
 /* C code produced by gperf version 3.0.1 */
 /* Command-line: 'c:\\Program Files (x86)\\GnuWin32\\bin\\gperf.exe' -m=20 --output-file cmdTableTest.h testDict.gperf  */
-/* Computed positions: -k'1' */
+/* Computed positions: -k'1,$' */
 
 #if !((' ' == 32) && ('!' == 33) && ('"' == 34) && ('#' == 35) \
       && ('%' == 37) && ('&' == 38) && ('\'' == 39) && ('(' == 40) \
@@ -30,12 +30,12 @@ error "gperf generated tables don't work with this execution character set. Plea
 #endif
 
 
-#define TOTAL_KEYWORDS 5
+#define TOTAL_KEYWORDS 21
 #define MIN_WORD_LENGTH 3
-#define MAX_WORD_LENGTH 7
-#define MIN_HASH_VALUE 4
-#define MAX_HASH_VALUE 12
-/* maximum key range = 9, duplicates = 0 */
+#define MAX_WORD_LENGTH 8
+#define MIN_HASH_VALUE 3
+#define MAX_HASH_VALUE 43
+/* maximum key range = 41, duplicates = 0 */
 
 #ifdef __GNUC__
 __inline
@@ -51,34 +51,34 @@ getHashTest (str, len)
 {
   static const unsigned char asso_values[] =
     {
-      13, 13, 13, 13, 13, 13, 13, 13, 13, 13,
-      13, 13, 13, 13, 13, 13, 13, 13, 13, 13,
-      13, 13, 13, 13, 13, 13, 13, 13, 13, 13,
-      13, 13, 13, 13, 13, 13, 13, 13, 13, 13,
-      13, 13, 13, 13, 13, 13, 13, 13, 13, 13,
-      13, 13, 13, 13, 13, 13, 13, 13, 13, 13,
-      13, 13, 13, 13, 13, 13, 13, 13, 13, 13,
-      13, 13, 13, 13,  5, 13,  0, 13,  2, 13,
-      13, 13, 13, 13,  0, 13, 13, 13, 13, 13,
-      13, 13, 13, 13, 13, 13, 13, 13, 13, 13,
-      13, 13, 13, 13, 13, 13, 13, 13, 13, 13,
-      13, 13, 13, 13, 13, 13, 13, 13, 13, 13,
-      13, 13, 13, 13, 13, 13, 13, 13, 13, 13,
-      13, 13, 13, 13, 13, 13, 13, 13, 13, 13,
-      13, 13, 13, 13, 13, 13, 13, 13, 13, 13,
-      13, 13, 13, 13, 13, 13, 13, 13, 13, 13,
-      13, 13, 13, 13, 13, 13, 13, 13, 13, 13,
-      13, 13, 13, 13, 13, 13, 13, 13, 13, 13,
-      13, 13, 13, 13, 13, 13, 13, 13, 13, 13,
-      13, 13, 13, 13, 13, 13, 13, 13, 13, 13,
-      13, 13, 13, 13, 13, 13, 13, 13, 13, 13,
-      13, 13, 13, 13, 13, 13, 13, 13, 13, 13,
-      13, 13, 13, 13, 13, 13, 13, 13, 13, 13,
-      13, 13, 13, 13, 13, 13, 13, 13, 13, 13,
-      13, 13, 13, 13, 13, 13, 13, 13, 13, 13,
-      13, 13, 13, 13, 13, 13
+      44, 44, 44, 44, 44, 44, 44, 44, 44, 44,
+      44, 44, 44, 44, 44, 44, 44, 44, 44, 44,
+      44, 44, 44, 44, 44, 44, 44, 44, 44, 44,
+      44, 44, 44, 44, 44, 44, 44, 44, 44, 44,
+      44, 44, 44, 44, 44, 44, 44, 44, 44, 15,
+      10,  5,  0, 44, 44, 44, 44, 44, 44, 44,
+      44, 44, 44, 44, 44, 44, 10, 20,  0,  5,
+      44, 44, 10, 44,  8,  0,  0, 44,  0, 44,
+       0,  0, 30,  0, 15, 44, 44, 15,  0, 44,
+      44, 44, 44, 44, 44, 44, 44, 44, 44, 44,
+      44, 44, 44, 44, 44, 44, 44, 44, 44, 44,
+      44, 44, 44, 44, 44, 44, 44, 44, 44, 44,
+      44, 44, 44, 44, 44, 44, 44, 44, 44, 44,
+      44, 44, 44, 44, 44, 44, 44, 44, 44, 44,
+      44, 44, 44, 44, 44, 44, 44, 44, 44, 44,
+      44, 44, 44, 44, 44, 44, 44, 44, 44, 44,
+      44, 44, 44, 44, 44, 44, 44, 44, 44, 44,
+      44, 44, 44, 44, 44, 44, 44, 44, 44, 44,
+      44, 44, 44, 44, 44, 44, 44, 44, 44, 44,
+      44, 44, 44, 44, 44, 44, 44, 44, 44, 44,
+      44, 44, 44, 44, 44, 44, 44, 44, 44, 44,
+      44, 44, 44, 44, 44, 44, 44, 44, 44, 44,
+      44, 44, 44, 44, 44, 44, 44, 44, 44, 44,
+      44, 44, 44, 44, 44, 44, 44, 44, 44, 44,
+      44, 44, 44, 44, 44, 44, 44, 44, 44, 44,
+      44, 44, 44, 44, 44, 44
     };
-  return len + asso_values[(unsigned char)str[0]];
+  return len + asso_values[(unsigned char)str[len - 1]] + asso_values[(unsigned char)str[0]];
 }
 
 #ifdef __GNUC__
@@ -91,24 +91,71 @@ getCmdTest (str, len)
 {
   static const struct cmdEntry wordListTest[] =
     {
-      {"",CMD_NOP_CODE,0,1,WR_OPCODE_MASK},
-      {"",CMD_NOP_CODE,0,1,WR_OPCODE_MASK},
-      {"",CMD_NOP_CODE,0,1,WR_OPCODE_MASK},
-      {"",CMD_NOP_CODE,0,1,WR_OPCODE_MASK},
-#line 13 "testDict.gperf"
-      {"LOAD", 		0x02,	2,	1,	WR_ALL_MASK},
-      {"",CMD_NOP_CODE,0,1,WR_OPCODE_MASK},
-      {"",CMD_NOP_CODE,0,1,WR_OPCODE_MASK},
-#line 15 "testDict.gperf"
-      {"TOOMANY",	0x04,	0,	1,	WR_OPCODE_MASK},
+      {"",CMD_NOP_CODE,0,WR_OPCODE_MASK},
+      {"",CMD_NOP_CODE,0,WR_OPCODE_MASK},
+      {"",CMD_NOP_CODE,0,WR_OPCODE_MASK},
 #line 11 "testDict.gperf"
-      {"JMP",		0x00,	2,	1,	WR_ALL_MASK},
-#line 14 "testDict.gperf"
-      {"NEXTBLK",	0x03,	0,	1,	WR_OPCODE_MASK},
-      {"",CMD_NOP_CODE,0,1,WR_OPCODE_MASK},
-      {"",CMD_NOP_CODE,0,1,WR_OPCODE_MASK},
+      {"NOP",		0x00,	0,	WR_OPCODE_MASK},
+#line 16 "testDict.gperf"
+      {"LOAD", 		0x05,	2,	WR_ALL_MASK},
+#line 27 "testDict.gperf"
+      {"LOOP4",		0x13,	1,	WR_OPCODE_MASK | WR_DATFLD_MASK},
+#line 19 "testDict.gperf"
+      {"SYNCRQ",		0x08,	1,	WR_OPCODE_MASK | WR_DATFLD_MASK},
+#line 17 "testDict.gperf"
+      {"NEXTBLK",	0x06,	0,	WR_OPCODE_MASK},
+#line 20 "testDict.gperf"
+      {"SYNCRQ_X",	0x09,	0,	WR_OPCODE_MASK},
+#line 22 "testDict.gperf"
+      {"DONE",		0x0B,	0,	WR_OPCODE_MASK},
+#line 26 "testDict.gperf"
+      {"LOOP3",		0x12,	1,	WR_OPCODE_MASK | WR_DATFLD_MASK},
+#line 15 "testDict.gperf"
+      {"JMP",		0x04,	1,	WR_OPCODE_MASK | WR_DATFLD_MASK},
+      {"",CMD_NOP_CODE,0,WR_OPCODE_MASK},
+#line 31 "testDict.gperf"
+      {"ENDLOOP4",	0x17,	1,	WR_OPCODE_MASK | WR_DATFLD_MASK},
+#line 18 "testDict.gperf"
+      {"HOLD",		0x07,	1,	WR_OPCODE_MASK | WR_TIMFLD_MASK},
+#line 25 "testDict.gperf"
+      {"LOOP2",		0x11,	1,	WR_OPCODE_MASK | WR_DATFLD_MASK},
+      {"",CMD_NOP_CODE,0,WR_OPCODE_MASK},
+#line 13 "testDict.gperf"
+      {"BRNCH_X",	0x02,	2,	WR_ALL_MASK},
+#line 30 "testDict.gperf"
+      {"ENDLOOP3",	0x16,	1,	WR_OPCODE_MASK | WR_DATFLD_MASK},
+      {"",CMD_NOP_CODE,0,WR_OPCODE_MASK},
+#line 24 "testDict.gperf"
+      {"LOOP1",		0x10,	1,	WR_OPCODE_MASK | WR_DATFLD_MASK},
+      {"",CMD_NOP_CODE,0,WR_OPCODE_MASK},
+      {"",CMD_NOP_CODE,0,WR_OPCODE_MASK},
+#line 29 "testDict.gperf"
+      {"ENDLOOP2",	0x15,	1,	WR_OPCODE_MASK | WR_DATFLD_MASK},
+      {"",CMD_NOP_CODE,0,WR_OPCODE_MASK},
 #line 12 "testDict.gperf"
-      {"JMPDATA",	0x01,	2,	1,	WR_ALL_MASK }
+      {"BRNCH",		0x01,	2,	WR_ALL_MASK},
+      {"",CMD_NOP_CODE,0,WR_OPCODE_MASK},
+      {"",CMD_NOP_CODE,0,WR_OPCODE_MASK},
+#line 28 "testDict.gperf"
+      {"ENDLOOP1",	0x14,	1,	WR_OPCODE_MASK | WR_DATFLD_MASK},
+      {"",CMD_NOP_CODE,0,WR_OPCODE_MASK},
+      {"",CMD_NOP_CODE,0,WR_OPCODE_MASK},
+      {"",CMD_NOP_CODE,0,WR_OPCODE_MASK},
+      {"",CMD_NOP_CODE,0,WR_OPCODE_MASK},
+#line 14 "testDict.gperf"
+      {"BRNCHDAT",	0x03,	2,	WR_ALL_MASK},
+      {"",CMD_NOP_CODE,0,WR_OPCODE_MASK},
+      {"",CMD_NOP_CODE,0,WR_OPCODE_MASK},
+      {"",CMD_NOP_CODE,0,WR_OPCODE_MASK},
+      {"",CMD_NOP_CODE,0,WR_OPCODE_MASK},
+#line 23 "testDict.gperf"
+      {"ERR",		0x0C,	0,	WR_OPCODE_MASK},
+      {"",CMD_NOP_CODE,0,WR_OPCODE_MASK},
+      {"",CMD_NOP_CODE,0,WR_OPCODE_MASK},
+      {"",CMD_NOP_CODE,0,WR_OPCODE_MASK},
+      {"",CMD_NOP_CODE,0,WR_OPCODE_MASK},
+#line 21 "testDict.gperf"
+      {"WAITSYNC",	0x0A,	0,	WR_OPCODE_MASK}
     };
 
   if (len <= MAX_WORD_LENGTH && len >= MIN_WORD_LENGTH)
