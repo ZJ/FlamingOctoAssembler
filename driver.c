@@ -304,6 +304,74 @@ directiveStatus processDirective(char * cmdStr, char * restLine, char * errMsg, 
 	return NOTDIRECTIVE; // We've not returns from any special code, so NOTDIRECTIVE.
 }
 
+char * parseForLabel(char ** lineBuffer, char * errMsg, symbolTab_t symbolTable, progCnt_t* progCnt) {
+	char labelStr[256] = "";
+	char * buffPos;
+
+	// Find label delimiter, if any
+	buffPos = strchr(*lineBuffer, LABEL_END);
+	if ( buffPos != NULL ) {
+		// On first pass, we'd define the label.
+		if (progCnt->whichPass == FIRST) {
+			// First non-whitespace is label separator
+			if ( buffPos == *lineBuffer ) {
+				strcpy(errMsg, ERR_PARSE_LBL_EMPTY);
+				return errMsg;
+			}
+			
+			*buffPos = '\0'; // Switch the label sep. to NULL char
+			strcpy(labelStr, *lineBuffer);
+			if (defineLabel(labelStr, errMsg, symbolTable, progCnt) != 0) return errMsg; //Problem defining the label
+		}
+		// Start after the label separator and skip whitespace
+		*lineBuffer = ++buffPos;
+		while ( isspace(*(*lineBuffer)) ) (*lineBuffer)++;
+	}
+	
+	return NULL;
+}
+
+char * buildCommand(char * errMsg, cmdEntry_ptr thisCmd, uint64_t * argArray, uint64_t * thisLine) {
+	uint64_t localLine 	= 0x0ULL;
+	uint64_t thisMask	= 0xFFFFFFFFFFFFFFFFULL;
+	
+	// We'll assume initialize to something like this already
+	//*thisLine = (CMD_ERR_CODE << INST_OPCD_OFFSET);
+	
+	// Start building the command word:
+	if ( (thisCmd->flags & WR_OPCODE_MASK) != 0 ) {
+		localLine |= ( thisMask & ( ((uint64_t)thisCmd->opcode) << INST_OPCD_OFFSET ));
+		thisMask &= ~INST_OPCD_MASK;
+	}
+	
+	// Now put the arguments where they should go.
+	// Order is Data, then Time.
+	// This method is clear, but not extensible
+	switch (thisCmd->numArgs) {
+		case 0:
+			// Can put in other default data, but right now it is 0's
+			break;
+		case 1: // Do we need to check for cases that won't happen if the cmd table is formatted properly?
+			if ( (thisCmd->flags & WR_DATFLD_MASK) != 0 ) {
+				localLine |= ( thisMask & ( argArray[0] << INST_DATA_OFFSET ) );
+			} else if ( (thisCmd->flags & WR_TIMFLD_MASK) != 0 ) {
+				localLine |= ( thisMask & ( argArray[0] << INST_TIME_OFFSET ) );					
+			}
+			break;
+		case 2:
+			localLine |= ( thisMask & ( argArray[0] << INST_DATA_OFFSET ) );
+			localLine |= ( (thisMask & INST_TIME_MASK) & ( argArray[1] << INST_TIME_OFFSET ) );
+			break;
+		default:
+			strcpy(errMsg, ERR_BAD_CMD_TABLE);
+			return errMsg;
+			break;
+	}
+	
+	*thisLine = localLine;
+	return NULL;
+}
+
 /*!	\brief	Handles processing of a single line of a file.
  *	\details - Searches for label definitions to build the symbol table, and checks that none a multiply defined.
  *			 - Also checks for literal definitions and creates those
@@ -314,7 +382,6 @@ directiveStatus processDirective(char * cmdStr, char * restLine, char * errMsg, 
  *	\returns	pointer to error description on failure (for printing)
  */
 char * processLine(char * lineBuffer, symbolTab_t symbolTable, progCnt_t * progCnt, uint64_t * memline) {
-	static char labelStr[256] = "";
 	static char cmdStr[9] = "";
 	static char errMsg[256] = "";
 	static char * buffPos = NULL;
@@ -334,27 +401,7 @@ char * processLine(char * lineBuffer, symbolTab_t symbolTable, progCnt_t * progC
 	
 	while ( isspace(*lineBuffer) ) lineBuffer++; // Skip leading space, if any
 
-	// Find label delimiter, if any
-	buffPos = strchr(lineBuffer, LABEL_END);
-	if ( buffPos != NULL ) {
-		symbol_ptr	thisLabel	= NULL;
-		
-		// On first pass, we'd define the label.
-		if (progCnt->whichPass == FIRST) {
-			// First non-whitespace is label separator
-			if ( buffPos == lineBuffer ) {
-				strcpy(errMsg, ERR_PARSE_LBL_EMPTY);
-				return errMsg;
-			}
-			
-			*buffPos = '\0'; // Switch the label sep. to NULL char
-			strcpy(labelStr, lineBuffer);
-			if (defineLabel(labelStr, errMsg, symbolTable, progCnt) != 0) return errMsg; //Problem defining the label
-		}
-		// Start after the label separator and skip whitespace
-		lineBuffer = ++buffPos;
-		while ( isspace(*lineBuffer) ) lineBuffer++;
-	}
+	if (parseForLabel(&lineBuffer, errMsg, symbolTable, progCnt) != NULL) return errMsg;
 	
 	// If we're to the null character, this line is empty
 	if (*lineBuffer == '\0') return NULL;
@@ -425,39 +472,10 @@ char * processLine(char * lineBuffer, symbolTab_t symbolTable, progCnt_t * progC
 	
 	// All the output stuff only happens on the second pass
 	if ( progCnt->whichPass == SECOND) {
-		uint64_t thisLine	= 0x0ULL;
-		uint64_t thisMask	= 0xFFFFFFFFFFFFFFFFULL;
+		uint64_t thisLine	= (((uint64_t)CMD_ERR_CODE) << INST_OPCD_OFFSET);
 		uint64_t * storLoc	= (memline + (progCnt->ddrOffset/CMD_BYTES) - rptCount);
 		
-		// Start building the command word:
-		if ( (thisCmd->flags & WR_OPCODE_MASK) != 0 ) {
-			thisLine |= ( thisMask & ( ((uint64_t)thisCmd->opcode) << INST_OPCD_OFFSET ));
-			thisMask &= ~INST_OPCD_MASK;
-		}
-		
-		// Now put the arguments where they should go.
-		// Order is Data, then Time.
-		// This method is clear, but not extensible
-		switch (argCnt) {
-			case 0:
-				// Can put in other default data, but right now it is 0's
-				break;
-			case 1: // Do we need to check for cases that won't happen if the cmd table is formatted properly?
-				if ( (thisCmd->flags & WR_DATFLD_MASK) != 0 ) {
-					thisLine |= ( thisMask & ( argArray[0] << INST_DATA_OFFSET ) );
-				} else if ( (thisCmd->flags & WR_TIMFLD_MASK) != 0 ) {
-					thisLine |= ( thisMask & ( argArray[0] << INST_TIME_OFFSET ) );					
-				}
-				break;
-			case 2:
-				thisLine |= ( thisMask & ( argArray[0] << INST_DATA_OFFSET ) );
-				thisLine |= ( (thisMask & INST_TIME_MASK) & ( argArray[1] << INST_TIME_OFFSET ) );
-				break;
-			default:
-				strcpy(errMsg, ERR_BAD_CMD_TABLE);
-				return errMsg;
-				break;
-		}
+		if (buildCommand(errMsg, thisCmd, argArray, &thisLine)!= NULL) return errMsg;
 		
 		// We've got a command, now write the opcode to memory
 		for( i=0; i<rptCount; i++) {
