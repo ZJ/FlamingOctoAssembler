@@ -492,6 +492,12 @@ char * processLine(char * lineBuffer, symbolTab_t symbolTable, progCnt_t * progC
 				} else printf("@ 0x%p:\t0x%016" PRIx64 ";\t  (RPT #%u)\n", storLoc + i, *(storLoc + i), i+1);
 			}
 		}
+	} else {
+		// Crap, might not have freed lineCopy on first pass.
+		if (DEBUG_PRINT) {
+			free(lineCopy);
+			lineCopy = NULL;
+		}
 	}
 	
 	// If we're done, it is success, return NULL
