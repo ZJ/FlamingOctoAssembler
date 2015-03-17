@@ -9,8 +9,8 @@ Trying mostly to get the basic structure of things laid out in advance.
 Valid line formats:
   - `[<LABEL>:] <COMMAND> [<ARG1>[, <ARG2>[, ...<ARGN>]]]; [<COMMENT>]`
   - `;[<COMMENT>]`
-  - `LIT <NAME> <VALUE>;[<COMMENT>]`
-  - `SETLC <VALUE>;[<COMMENT>]` or other reserved assembler directives 
+  - `[<LABEL>:] LIT <NAME> <VALUE>;[<COMMENT>]`
+  - `[<LABEL>:] SETLC <VALUE>;[<COMMENT>]` or other reserved assembler directives 
   - A blank line, or a line filled with only whitespace
 
 Noting that:
@@ -24,7 +24,6 @@ Noting that:
   - Numeric values will be given as one of:
     - Hex `0x<value>` or `0X<value>`, upper-, lower-, or mixed-case letters acceptable
     - Octal `0<value>`
-    - Binary `0b<value>` or `0B<value>`
     - Decimal `<value>`
     - Invalid digit values (e.g. `0b3`, `1A`, or `099`) for any of the above will cause an error.
  
@@ -63,4 +62,5 @@ Because a `LOAD` or similar command will exist, we'll need a special assembler d
 Assembler directives alter the internal state of the assembler without causing any machine code to be output.
   - `LIT` Sets up a mapping from a string to a value
   - `SETLC` Sets the location counter to a specified value. Used for the results of jump and/or move commands and their effects on the stack.
-  
+  - `RPT <Repeat Count> <Command>` Repeats the command given by the remainder of the the line the given number of times.
+  - `PAD <Alignment>` Pads the instruction stack with the error opcode out to the block alignment specified.
